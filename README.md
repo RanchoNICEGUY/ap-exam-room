@@ -2,69 +2,127 @@
   <img src="Source/Icon/master-1024.png" width="112" height="112" alt="AP Exam Room Icon">
 </p>
 
-<h1 align="center">AP 模考室 · AP Exam Room</h1>
+<h1 align="center">AP Exam Room (AP 模考室)</h1>
 
 <p align="center">
-  <strong>Local-first, Bluebook-inspired AP Exam Runner for macOS (Swift + WKWebView), Portable Web (Mac / iPad LAN), and Zero-Dependency Windows.</strong><br>
-  <em>纯软件仓库，不含任何真实题库或真题 PDF；附带 3 套 100% 原创演示样例（Demo），支持导入自有 JSON 题库与本地 PDF。</em>
+  <strong>English</strong> | <a href="README.zh-CN.md">简体中文</a>
+</p>
+
+<p align="center">
+  <strong>Local-first, Bluebook-inspired AP practice & mock exam suite for macOS, Windows (zero-dependency), and Portable Web / iPad LAN.</strong><br>
+  <em>Software only — no copyrighted AP question banks or PDFs are distributed. Includes 3 tiny original demo walkthroughs to showcase every screen.</em>
 </p>
 
 ---
 
-## Important Notices · 重要说明（题库与 CB / 第三方素材标注）
+## Disclaimer & Legal Notice
 
-1. **No Proprietary Question Banks Included · 不含真实题库与真题**  
-   This repository contains **only the application source code** plus **3 tiny original self-authored demo sets** (`Source/Data/exams/demo_calc_bc.json`, `demo_stats.json`, `demo_csa.json`). All proprietary question banks, answer keys, PDFs, and walkthrough videos have been excluded. Bring your own question sets via **Question Bank → Import JSON** ([Format Spec](docs/JSON_IMPORT_FORMAT.md)).
-2. **College Board / Bluebook® Asset Notice · CB 与第三方图标标注**  
-   This project is an independent study tool and is **not affiliated with or endorsed by College Board**.  
-   - **Original Project Brand**: `Source/AppIcon.svg`, `Source/Assets/RoomMark.svg`, and `Source/Assets/icons/*.svg` are original icons created for AP Exam Room.  
-   - **CB / Bluebook®-Style Assets (Non-MIT, trademarked to College Board)**:  
-     - `Source/Assets/Bluebook_Logo_Mark.svg` — Bluebook™ mark (**unused in active UI**, kept only as legacy reference).  
-     - `Source/Assets/face-excellent.svg` — Bluebook™-style completion mascot SVG (used on the Completion screen).  
-     - `Source/Assets/book-open.svg`, `checklist-doc.svg`, `clock.svg`, `download.svg`, `graph-bar.svg`, `laptop-check.svg`, `lock.svg`, `practice.svg` — CB/Bluebook™-style 48×48 duotone SVGs (**unused in active UI**, preserved in `Source/Assets/`).  
-   - **Other Non-MIT / Attribution Assets**: `Source/Assets/desmos.js` (Desmos® Calculator trial bundle), `Source/Assets/pdfjs/` (Mozilla PDF.js, Apache-2.0), `Source/Assets/katex.*` (KaTeX, MIT), Perseus renderer in `Source/template.html` (MIT), and `Source/Pets/` (Three.js MIT + 3D companion `.glb`/`.png` models).  
-   Full file-by-file details and licenses are documented in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+1. **No Affiliation / No Official Endorsement**  
+   **AP Exam Room** is an independent, open-source educational practice runner. It is **NOT affiliated with, endorsed by, sponsored by, or officially connected with College Board**, **Desmos Studio PBC**, **Khan Academy**, or **Mozilla** in any way.
+2. **Trademarks**  
+   **AP®**, **Advanced Placement®**, **College Board®**, and **Bluebook™** are registered trademarks of College Board. **Desmos®** is a registered trademark of Desmos Studio PBC. All trademarks belong to their respective owners and are referenced strictly for identification of UI inspirations and compatible tools.
+3. **Software Only — No Question Banks Included**  
+   This repository and all Release archives contain **software source code/executables plus only 3 minimal 100% original sample walkthrough sets** (`Source/Data/exams/demo_calc_bc.json`, `demo_stats.json`, `demo_csa.json`). No proprietary College Board exams, third-party commercial prep banks, answer keys, PDFs, or videos are included.  
+   Users are **solely responsible** for ensuring they hold lawful rights/permissions for any external JSON question banks or local PDF files they import into the app.
+4. **"AS IS" Warranty & No Liability**  
+   This software is provided **"AS IS"**, without warranty of any kind, express or implied (see [LICENSE](LICENSE)). Practice timers, interface behaviors, and automated grading accuracy **do not guarantee parity with official College Board Bluebook™ exam scoring or administration**. The authors assume no responsibility for exam outcomes or local browser/app data loss — please export backups regularly via **Settings → Download Backup**.
 
 ---
 
-## Key Features · 核心特性
+## College Board / Bluebook® Style Icons & Third-Party Assets
 
-- **Bluebook-Style Exam Workspace**: Split/single-pane native question layout, KaTeX math typesetting, option elimination (`ABC` strikeout), `Mark for Review` bookmarking, highlights & notes drawer, Question Navigator grid, and Light / Dark theme switching.
-- **Draggable & Animated Side-Dockable Popups**: Floating Desmos Graphing/Scientific Calculator (with offline Canvas fallback) and Formula Reference Sheet powered by Pointer Events — drag anywhere smoothly, snap to left/right viewport edges with live translucent preview & workspace reflow, resize corners or dock splitters, and auto-close cleanly upon entering *Check Your Work*.
-- **Practice Instant Feedback + Confetti**: Practice-mode `Check Answer` bar pins `Continue` at `0px` over the check button with smooth CSS-Grid explanation drawer, audio cues, and Retina canvas confetti.
-- **AP CSA Interactive Java FRQ Editor**: Code editor supporting local `javac`/`java` compilation and execution inside the macOS desktop app.
-- **Dual-Pane PDF Engine**: Built-in PDFKit native renderer (`pdf_helper.swift` on macOS) and offline Mozilla PDF.js fallback for portable web / Windows with interactive bubble sheet + FRQ rubric self-scoring.
-- **Mistake Bank, Test History & Anki Export**: SQLite-backed persistence (`History.swift` / `dev_server.py`), per-question mistake bookmarking, one-click AnkiConnect push, and JSON backup/restore.
+All non-original visual assets and bundled libraries are itemized with ownership and license scope in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and excluded from the repository's MIT License:
+
+| Asset / Path | Attribution / Origin | UI Status | License Scope |
+| --- | --- | --- | --- |
+| `Source/Assets/face-excellent.svg` | College Board / Bluebook™-style smiling completion graphic | **Active** (Completion screen) | Proprietary CB-style asset (**not MIT**); replace for commercial redistribution |
+| `Source/Assets/Bluebook_Logo_Mark.svg` | College Board Bluebook™ mark | **Unused** legacy reference | Proprietary CB mark (**not MIT**); active app uses original `RoomMark.svg` |
+| `Source/Assets/book-open.svg`, `checklist-doc.svg`, `clock.svg`, `download.svg`, `graph-bar.svg`, `laptop-check.svg`, `lock.svg`, `practice.svg` | Bluebook™-style 48×48 UI icon files | **Unused** legacy reference | Proprietary CB-style SVGs (**not MIT**), retained with attribution |
+| `Source/AppIcon.svg`, `Source/Icon/*`, `Source/Assets/RoomMark.svg`, `Source/Assets/icons/*.svg` | Original **AP Exam Room** app emblem & geometric subject/toolbar icons | **Active** | Original project artwork (MIT-compatible) |
+| `Source/Assets/desmos.js` | Desmos® Calculator API (Trial Key) | **Active** (with offline canvas fallback) | Proprietary Desmos Studio PBC terms (**not MIT**) |
+| `Source/Assets/pdfjs/` | Mozilla PDF.js | **Active** (Windows / Portable PDF mode) | Apache License 2.0 |
+| `Source/Assets/katex.*`, `Source/Assets/fonts/` | KaTeX Math Typesetting | **Active** | MIT License |
+| Perseus embedded renderer (`Source/template.html`) | Khan Academy Perseus | **Active** | MIT License |
+| `Source/Pets/` & `Source/Assets/RoomPets.js` | Three.js (MIT) + 3D study companion models/portraits | **Active** (toggleable in Settings) | Three.js MIT; `.glb`/`.png` models separate non-MIT assets |
 
 ---
 
-## Interface Screenshots · 全界面截图展示
+## Download Latest Release (`v1.0.0`)
 
-All screenshots below were captured in headless Chromium at 2× Retina resolution using only the **3 original demo sets** (`demo_calc_bc`, `demo_stats`, `demo_csa`).
+Prebuilt packages for **macOS**, **Windows**, and **Portable Web** are available on the [GitHub Releases](https://github.com/RanchoNICEGUY/ap-exam-room/releases/latest) page:
 
-### 1. Question Bank & Setup · 题库主页与开考设置
+| Platform | Package | Requirements | Notes |
+| --- | --- | --- | --- |
+| **Windows 10 / 11** | `AP-Exam-Room-Windows-ZeroDep-v1.0.0.zip` | Built-in PowerShell + Microsoft Edge / Chrome | **Zero dependencies** (no Python/Node/admin required); unzip and double-click `Start-APExamRoom.bat` |
+| **macOS** (Apple Silicon / Universal) | `AP-Exam-Room-macOS-v1.0.0.zip` | macOS 13+ | Native Swift + `WKWebView` + PDFKit app (`AP 模考室.app`); see Gatekeeper note below |
+| **Cross-Platform / iPad LAN** | `AP-Exam-Room-Portable-Web-v1.0.0.zip` | Python 3 + modern browser | Run `python3 dev_server.py --lan` to open on Mac, Linux, Windows, or iPad Safari (PWA) |
+
+### Platform Quick Start
+
+#### Windows (Zero-Dependency Standalone)
+1. Download and extract `AP-Exam-Room-Windows-ZeroDep-v1.0.0.zip` anywhere (for example `D:\AP-Exam-Room\`).
+2. Double-click **`Start-APExamRoom.bat`** — PowerShell starts a lightweight local server (`127.0.0.1`) and opens AP Exam Room in an isolated Edge/Chrome app window.
+3. *(Optional)* Double-click `设置题库PDF路径.bat` to point the viewer to a local folder of your own study PDFs.
+4. *(Optional)* Install any free JDK (`javac.exe`, e.g., Eclipse Temurin JDK 17/21) to run AP CSA Java code locally via **Run Java**.
+
+#### macOS (Native Desktop App)
+1. Download `AP-Exam-Room-macOS-v1.0.0.zip`, unzip `AP 模考室.app`, and move it to `/Applications`.
+2. Because this open-source build is ad-hoc signed rather than Apple-notarized, macOS Gatekeeper may flag downloaded zips on first launch. Clear the quarantine attribute once before opening:
+   ```bash
+   xattr -cr "/Applications/AP 模考室.app"
+   open "/Applications/AP 模考室.app"
+   ```
+   Alternatively, build locally from `Source/` (requires Xcode Command Line Tools + Python 3):
+   ```bash
+   cd Source && bash build-app.sh
+   ```
+
+#### iPad / Local Web Server
+```bash
+python3 dev_server.py --lan   # Serves http://<your-mac-ip>:18990/index.html
+```
+Open that LAN URL in Safari on iPad and tap **Share → Add to Home Screen** for a full-screen offline-friendly web app.
+
+---
+
+## Key Features
+
+- **Bluebook-Style Exam Runner**: Split-pane and single-flow question layouts, KaTeX formulas, `ABC` option strikeout/elimination, `Mark for Review`, highlights & scratchpad notes, Question Navigator modal, and Light / Dark themes.
+- **Smooth Drag & Side-Dock Popups**: Pointer-event dragging across **Desmos Calculator** (with offline canvas graphing/scientific fallback) and **Reference Sheet**; drag to left/right viewport edges for animated snap preview & workspace reflow, adjust width with corner/edge splitters, and auto-close every popup cleanly when entering *Check Your Work*.
+- **Instant Practice Mode + Confetti**: Full-width bottom feedback dock keeping **Continue** aligned directly over **Check Answer**, animated explanation drawer, audio feedback cues, and 2× Retina confetti.
+- **Interactive Java FRQ Editor (AP CSA)**: Built-in Java code editor with local `javac` / `java` compilation & stdout/stderr panel.
+- **Dual-Pane PDF Engine**: Native PDFKit rendering on macOS (`pdf_helper.swift`) and bundled offline Mozilla PDF.js on Windows / Web, paired with an interactive MCQ bubble sheet & FRQ rubric checklist.
+- **Mistake Bank, History & Anki Export**: Persistent history (`History.swift` SQLite / browser storage), targeted missed-question re-practice, JSON export/import, and one-click AnkiConnect push.
+
+---
+
+## Interface Screenshots
+
+All 16 screenshots below were captured in headless Chromium at 2× Retina scale using strictly the **3 original demo sets**:
+
+### 1. Question Bank & Setup
 
 | Question Bank (Light) | Question Bank (Dark) | Test Setup Dialog |
 | :---: | :---: | :---: |
 | ![Question Bank Light](docs/screenshots/01-question-bank-light.png) | ![Question Bank Dark](docs/screenshots/02-question-bank-dark.png) | ![Test Setup](docs/screenshots/03-test-setup-dialog.png) |
 
-### 2. Exam Workspace, Instant Feedback & Floating / Side-Docked Tools · 作答界面、即时批改与侧边停靠弹窗
+### 2. Exam Workspace, Practice Feedback & Side-Docking Popups
 
-| Section I MCQ Workspace | Practice Feedback + Confetti + Drawer | Desmos Side-Docked Right + Floating Ref |
+| Section I MCQ Workspace | Instant Practice Feedback + Confetti | Desmos Docked Right + Floating Reference |
 | :---: | :---: | :---: |
 | ![Exam MCQ](docs/screenshots/04-exam-mcq-light.png) | ![Practice Feedback](docs/screenshots/05-practice-feedback-correct.png) | ![Desmos Dock Right Light](docs/screenshots/06-desmos-side-dock-light.png) |
 
-| Desmos Side-Docked Left (Dark) | Question Navigator | Check Your Work (Popups Auto-Closed) |
+| Desmos Docked Left (Dark Mode) | Question Navigator Grid | Check Your Work (Popups Auto-Closed) |
 | :---: | :---: | :---: |
 | ![Desmos Dock Left Dark](docs/screenshots/07-desmos-side-dock-dark.png) | ![Navigator](docs/screenshots/08-question-navigator.png) | ![Check Your Work](docs/screenshots/09-check-your-work.png) |
 
-### 3. Break, AP CSA FRQ Code Editor & Completion · 休息倒计时、Java FRQ 编辑器与完卷页
+### 3. Inter-Section Break, AP CSA Java Editor & Completion
 
-| Inter-Section Break | AP CSA Java FRQ Editor | Completion Screen (uses CB-style `face-excellent.svg`) |
+| Break Timer Screen | AP CSA Java FRQ Editor | Completion Screen (`face-excellent.svg` noted as CB-style) |
 | :---: | :---: | :---: |
 | ![Break Screen](docs/screenshots/10-break-screen.png) | ![CSA FRQ](docs/screenshots/11-frq-csa-code-editor.png) | ![Completion](docs/screenshots/12-completion-screen.png) |
 
-### 4. Results, Mistake Bank, Test History & Settings · 成绩复盘、错题本、历史记录与设置
+### 4. Results, Mistake Bank, History & Settings
 
 | Test Results Overview | Mistake Bank | Test History | Settings |
 | :---: | :---: | :---: | :---: |
@@ -72,29 +130,7 @@ All screenshots below were captured in headless Chromium at 2× Retina resolutio
 
 ---
 
-## Quick Start · 快速开始
+## Bring Your Own Question Bank (JSON Import)
 
-### macOS Native Desktop App (`.app`)
-Requires Xcode Command Line Tools (`swiftc`) and Python 3:
-```bash
-cd Source
-bash build-app.sh
-open "AP 模考室.app"
-```
-This builds `AP 模考室.app`, `AP-Exam-Room-Portable/`, and `AP-Exam-Room-Windows-ZeroDep.zip`.
-
-### Local Web Server (Mac / Linux / iPad LAN)
-After running `Source/build-app.sh`, start the local Python server from `AP-Exam-Room-Portable/`:
-```bash
-python3 dev_server.py        # http://127.0.0.1:18990/index.html
-python3 dev_server.py --lan  # Expose on LAN so an iPad on the same Wi-Fi can add to Home Screen as a PWA
-```
-
-### Windows (Zero-Dependency Portable)
-Run `Source/build-app.sh` (or open `AP-Exam-Room-Portable/` on Windows) and double-click `Start-APExamRoom.bat`. Optional local JDK (`javac.exe`) enables Java FRQ compilation; see [`Source/win/Windows使用说明.txt`](Source/win/Windows使用说明.txt).
-
----
-
-## Bring Your Own Question Bank · 导入自定义题库
-
-See [`docs/JSON_IMPORT_FORMAT.md`](docs/JSON_IMPORT_FORMAT.md) for the JSON schema (`schemaVersion: 1`). Import UTF-8 `.json` files directly via **Question Bank → Import JSON**, or export missed questions to re-practice later.
+Import custom tests (up to 4 MB per UTF-8 `.json` file) via **Question Bank → Import JSON**.  
+Full schema documentation and examples: [`docs/JSON_IMPORT_FORMAT.md`](docs/JSON_IMPORT_FORMAT.md).
