@@ -1892,6 +1892,11 @@ window.renderNativeFrqRubricBlock = function (ex, q, s) {
     <input type="checkbox" class="cb-rubric-chk" data-frq-orig="${q.origId}" data-rubric-id="${escapeHtml(it.id)}" ${savedMap[it.id] ? 'checked' : ''}>
     <span>${escapeHtml(it.label)} <strong>(+${it.points || 1})</strong></span>
   </label>`).join('');
+  const vPrefix = window.ROOM_IS_APP_WEBKIT ? '../../../' : (location.protocol.startsWith('http') ? '/' : '../');
+  const rawVideo = q.videoUrl || '';
+  const isAbsVideo = /^(?:https?:|data:|blob:|\/)/i.test(rawVideo);
+  const vSrc = rawVideo ? (isAbsVideo ? rawVideo : vPrefix + rawVideo.replace(/^\/+/, '')) : '';
+  const videoHtml = vSrc ? `<details class="room-advanced room-video-details"><summary>Video walkthrough</summary><video controls preload="none" data-src="${escapeHtml(vSrc)}"></video></details>` : '';
   return `<div class="cb-rubric-panel">
     <div class="cb-rubric-head">
       <h3>AP Scoring Guidelines & Self-Check</h3>
@@ -1899,6 +1904,7 @@ window.renderNativeFrqRubricBlock = function (ex, q, s) {
     </div>
     ${checksHtml ? `<div class="cb-rubric-list">${checksHtml}</div>` : ''}
     ${q.rubricHtml ? `<details class="room-advanced" open><summary>Canonical Solution & Scoring Key</summary>${q.rubricHtml}</details>` : ''}
+    ${videoHtml}
   </div>`;
 };
 
