@@ -1,0 +1,76 @@
+{
+  "id": "demo_calc_bc",
+  "subject": "AP Calculus BC",
+  "subjectKey": "calc_bc",
+  "subjectZh": "微积分 BC（演示样例）",
+  "title": "Sample Calculus BC Walkthrough (Original Demo)",
+  "subtitle": "3 Original MCQs + 1 FRQ · Desmos Graphing & Built-in Formulas",
+  "category": "mock",
+  "mode": "native",
+  "tier": 1,
+  "calculator": "graphing",
+  "referenceType": "builtin_calc_bc",
+  "durationSeconds": 600,
+  "hasFrq": true,
+  "frqDurationSeconds": 600,
+  "breakMinutes": 5,
+  "mcqCount": 3,
+  "frqCount": 1,
+  "hasAnswers": true,
+  "hasExplanations": true,
+  "mcqDirections": "<p><strong>Original Demo Set:</strong> This walkthrough contains 3 self-authored sample Calculus BC items to demonstrate KaTeX rendering, interactive Desmos graphing/side-docking, and instant practice feedback.</p>",
+  "frqDirections": "<p><strong>Original Demo FRQ:</strong> Enter your solution steps below. After finishing, review the sample scoring guidelines on the results page.</p>",
+  "questions": [
+    {
+      "origId": 1,
+      "stemHtml": "<p>A particle moves along the $x$-axis so that at time $t \\ge 0$ its velocity is modeled by the differentiable function $$v(t) = 3t^2 - 12t + 9.$$ At $t = 0$, the particle is located at position $x = 2$.</p>",
+      "promptHtml": "<p>What is the position of the particle at time $t = 2$?</p>",
+      "options": [
+        {"letter": "A", "html": "<p>$0$</p>"},
+        {"letter": "B", "html": "<p>$4$</p>"},
+        {"letter": "C", "html": "<p>$6$</p>"},
+        {"letter": "D", "html": "<p>$8$</p>"}
+      ]
+    },
+    {
+      "origId": 2,
+      "stemHtml": "<p>Consider the continuous function $f$ defined by $f(x) = \\ln(x^2 + 1)$ for all real numbers $x$.</p>",
+      "promptHtml": "<p>What is the value of $f'(1)$?</p>",
+      "options": [
+        {"letter": "A", "html": "<p>$\\frac{1}{2}$</p>"},
+        {"letter": "B", "html": "<p>$1$</p>"},
+        {"letter": "C", "html": "<p>$2$</p>"},
+        {"letter": "D", "html": "<p>$\\ln 2$</p>"}
+      ]
+    },
+    {
+      "origId": 3,
+      "stemHtml": "<p>Suppose the Maclaurin series for a smooth function $g$ centered at $x = 0$ is given by $$g(x) = 1 + 2x + \\frac{3}{2}x^2 + \\frac{2}{3}x^3 + \\cdots$$</p>",
+      "promptHtml": "<p>What is the value of the third derivative $g'''(0)$?</p>",
+      "options": [
+        {"letter": "A", "html": "<p>$\\frac{2}{3}$</p>"},
+        {"letter": "B", "html": "<p>$2$</p>"},
+        {"letter": "C", "html": "<p>$4$</p>"},
+        {"letter": "D", "html": "<p>$6$</p>"}
+      ]
+    }
+  ],
+  "answers": {
+    "1": "B",
+    "2": "B",
+    "3": "C"
+  },
+  "explanations": {
+    "1": "<p>Integrate the velocity from $t=0$ to $t=2$: $$x(2) = x(0) + \\int_0^2 (3t^2 - 12t + 9)\\,dt = 2 + \\Big[t^3 - 6t^2 + 9t\\Big]_0^2 = 2 + (8 - 24 + 18) = 4.$$</p>",
+    "2": "<p>By the chain rule, $$f'(x) = \\frac{2x}{x^2 + 1}.$$ Evaluating at $x = 1$ gives $f'(1) = \\frac{2(1)}{1 + 1} = 1$.</p>",
+    "3": "<p>The coefficient of $x^3$ in a Maclaurin series is $\\frac{g'''(0)}{3!}$. Setting $\\frac{g'''(0)}{6} = \\frac{2}{3}$ gives $g'''(0) = 4$.</p>"
+  },
+  "frqQuestions": [
+    {
+      "origId": 1,
+      "stemHtml": "<p>Let $y = f(x)$ be the solution to the separable differential equation $$\\frac{dy}{dx} = 2x(y - 1)$$ with initial condition $f(0) = 3$.</p>",
+      "promptHtml": "<p>(a) Write an equation for the tangent line to the graph of $y = f(x)$ at $x = 0$, and use it to approximate $f(0.1)$.</p><p>(b) Solve the differential equation for $y = f(x)$.</p>",
+      "rubricHtml": "<ul><li><strong>Point 1:</strong> Slope at $(0,3)$ is $2(0)(2)=0$, so tangent line is $y = 3$ and $f(0.1) \\approx 3$.</li><li><strong>Point 2:</strong> Separates variables as $\\frac{1}{y-1}\\,dy = 2x\\,dx$ and integrates to $\\ln|y-1| = x^2 + C$.</li><li><strong>Point 3:</strong> Applies $f(0)=3$ to find $y = 1 + 2e^{x^2}$.</li></ul>"
+    }
+  ]
+}

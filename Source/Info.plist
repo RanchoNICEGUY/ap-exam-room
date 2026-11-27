@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>AP Exam Room</string>
+	<key>CFBundleExecutable</key>
+	<string>APExamRoom</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon.icns</string>
+	<key>CFBundleIdentifier</key>
+	<string>io.github.ap-exam-room.desktop</string>
+	<key>CFBundleName</key>
+	<string>AP Exam Room</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.6</string>
+	<key>CFBundleVersion</key>
+	<string>7</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>AP Exam Room only reads your AP study folder when you open an external PDF test or reference PDF.</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+</dict>
+</plist>

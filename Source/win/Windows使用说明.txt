@@ -1,0 +1,20 @@
+﻿AP 模考室（AP Exam Room）— Windows 零依赖版使用说明
+======================================================
+
+一、开箱即用（零额外依赖）
+1. 将整个压缩包解压到电脑任意文件夹（例如 D:\AP-Exam-Room-Windows\）。
+2. 双击运行 Start-APExamRoom.bat，会自动通过系统自带的 PowerShell 启用本地服务端，并在 Edge / Chrome 独立应用窗口中打开模考室。
+3. 无需安装 Python、无需安装 Node.js、无需管理员权限。
+
+二、内置功能一览
+- 开箱演示题库（3 套 100% 原创示例卷）：涵盖交互选择题 + KaTeX 数学排版 + FRQ + AP CSA Java 编辑器演示，也可通过「题库 → Import JSON」导入自定义题库（格式见 JSON Import Format.md）。
+- Bluebook 风格工具栏：可拖拽且支持左右侧边停靠的 Desmos 图形/科学计算器（含离线 Canvas 兜底）、公式速查浮窗、浅色/深色主题、错题本、历史记录、练习即时批改与自定义区间。
+- 可选 PDF 双栏联动模式：如有自备本地 PDF 试卷文件夹，内置离线 PDF.js 引擎可直接在浏览器内高清渲染 PDF 页面，无需第三方 PDF 阅读器。
+
+三、如何关联自备本地 PDF 文件夹（可选）
+- 自动识别：若在软件旁设置目录或环境变量，可自动读取本地 PDF。
+- 手动关联：双击运行 设置题库PDF路径.bat，在弹出的窗口中选中你的本地题库 PDF 根目录，会在当前目录生成 vault_path.txt，重启 Start-APExamRoom.bat 即刻生效。
+
+四、可选进阶功能
+- AP CSA 本地编译运行 Java：若本机未装 JDK，点击 Run Java 会提示“未检测到本机 JDK（javac.exe）”且不影响其余功能；安装免费 JDK（如 Eclipse Temurin JDK 17/21）后重启模考室即可编译运行。
+- 一键导入 Anki：若本机正在运行 Anki 与 AnkiConnect（127.0.0.1:8765），Windows 版内置 /local-proxy 会自动绕过系统代理推送错题。

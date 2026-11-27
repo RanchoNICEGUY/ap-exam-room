@@ -1,0 +1,63 @@
+{
+  "id": "demo_csa",
+  "subject": "AP Computer Science A",
+  "subjectKey": "csa",
+  "subjectZh": "计算机科学 A（演示样例）",
+  "title": "Sample Computer Science A Walkthrough (Original Demo)",
+  "subtitle": "2 Original MCQs + 1 Interactive Java FRQ Editor",
+  "category": "frq",
+  "mode": "native",
+  "tier": 1,
+  "calculator": "none",
+  "referenceType": "",
+  "durationSeconds": 600,
+  "hasFrq": true,
+  "frqDurationSeconds": 600,
+  "breakMinutes": 5,
+  "mcqCount": 2,
+  "frqCount": 1,
+  "hasAnswers": true,
+  "hasExplanations": true,
+  "mcqDirections": "<p><strong>Original Demo Set:</strong> 2 original Java MCQs followed by an interactive Java FRQ editor.</p>",
+  "frqDirections": "<p><strong>Interactive Java Editor:</strong> Write a Java method or snippet below. In the macOS desktop app with JDK installed, click <strong>Run Java</strong> to compile and execute locally.</p>",
+  "questions": [
+    {
+      "origId": 1,
+      "stemHtml": "<pre><code>int sum = 0;\nfor (int k = 1; k &lt;= 7; k += 2) {\n    sum += k;\n}</code></pre>",
+      "promptHtml": "<p>What value is stored in <code>sum</code> after the loop finishes executing?</p>",
+      "options": [
+        {"letter": "A", "html": "<p><code>9</code></p>"},
+        {"letter": "B", "html": "<p><code>12</code></p>"},
+        {"letter": "C", "html": "<p><code>16</code></p>"},
+        {"letter": "D", "html": "<p><code>28</code></p>"}
+      ]
+    },
+    {
+      "origId": 2,
+      "stemHtml": "<pre><code>String word = \"Bluejay\";\nString out = word.substring(2, 5);</code></pre>",
+      "promptHtml": "<p>What string is referenced by <code>out</code>?</p>",
+      "options": [
+        {"letter": "A", "html": "<p><code>\"lue\"</code></p>"},
+        {"letter": "B", "html": "<p><code>\"uej\"</code></p>"},
+        {"letter": "C", "html": "<p><code>\"ueja\"</code></p>"},
+        {"letter": "D", "html": "<p><code>\"ej\"</code></p>"}
+      ]
+    }
+  ],
+  "answers": {
+    "1": "C",
+    "2": "B"
+  },
+  "explanations": {
+    "1": "<p>The loop adds the odd integers $1 + 3 + 5 + 7 = 16$.</p>",
+    "2": "<p>Indices start at 0 (`B`=0, `l`=1, `u`=2, `e`=3, `j`=4, `a`=5). <code>substring(2, 5)</code> takes indices 2, 3, and 4, yielding <code>\"uej\"</code>.</p>"
+  },
+  "frqQuestions": [
+    {
+      "origId": 1,
+      "stemHtml": "<p>Complete the static method <code>countAbove(int[] nums, int limit)</code> so it returns how many elements in <code>nums</code> are strictly greater than <code>limit</code>.</p>",
+      "promptHtml": "<p>Implement <code>countAbove</code> using an enhanced <code>for</code> loop or indexed loop.</p>",
+      "rubricHtml": "<ul><li>Initializes counter to <code>0</code> before loop.</li><li>Traverses every element of <code>nums</code> without out-of-bounds error.</li><li>Increments only when element is strictly <code>&gt; limit</code> and returns the count.</li></ul>"
+    }
+  ]
+}

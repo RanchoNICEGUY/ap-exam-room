@@ -1,0 +1,20 @@
+{
+  "name": "AP 模考室",
+  "short_name": "AP 模考室",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f6f9",
+  "theme_color": "#f4f6f9",
+  "icons": [
+    {
+      "src": "/Assets/AppIcon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/Assets/AppIcon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

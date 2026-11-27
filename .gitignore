@@ -1,0 +1,28 @@
+# Build outputs & packaged executables
+AP 模考室.app/
+AP-Exam-Room-Portable/
+*.app/
+*.zip
+Source/pdf_helper
+Source/ocr_helper
+Vault/
+vault_path.txt
+
+# Local databases & runtime files
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.db
+
+# OS & Python artifacts
+.DS_Store
+__pycache__/
+*.pyc
+*.pyo
+*.bak*
+
+# Optional user-supplied private banks (never commit copyrighted exam material)
+*.pdf
+Source/Data/exams/*.json
+!Source/Data/exams/demo_*.json

@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "generatedAt": "2026-11-27T08:00:00Z",
+  "stats": {
+    "totalExams": 3,
+    "nativeExams": 3,
+    "pdfExams": 0,
+    "subjectsCount": 3
+  },
+  "subjects": [
+    {
+      "key": "calc_bc",
+      "name": "AP Calculus BC",
+      "zh": "微积分 BC（演示样例）",
+      "isExtended": false,
+      "examCount": 1
+    },
+    {
+      "key": "stats",
+      "name": "AP Statistics",
+      "zh": "统计学（演示样例）",
+      "isExtended": false,
+      "examCount": 1
+    },
+    {
+      "key": "csa",
+      "name": "AP Computer Science A",
+      "zh": "计算机科学 A（演示样例）",
+      "isExtended": false,
+      "examCount": 1
+    }
+  ],
+  "exams": [
+    {
+      "id": "demo_calc_bc",
+      "title": "Sample Calculus BC Walkthrough (Original Demo)",
+      "subtitle": "3 Original MCQs + 1 FRQ · Desmos Graphing & Built-in Formulas",
+      "subject": "AP Calculus BC",
+      "subjectZh": "微积分 BC（演示样例）",
+      "subjectKey": "calc_bc",
+      "isExtended": false,
+      "folderPath": ["Demo Walkthroughs"],
+      "category": "mock",
+      "mode": "native",
+      "tier": 1,
+      "mcqCount": 3,
+      "frqCount": 1,
+      "pageCount": 0,
+      "hasAnswers": true,
+      "hasExplanations": true,
+      "calculator": "graphing",
+      "referencePdf": "",
+      "referenceType": "builtin_calc_bc",
+      "durationSeconds": 600,
+      "frqDurationSeconds": 600
+    },
+    {
+      "id": "demo_stats",
+      "title": "Sample Statistics Walkthrough (Original Demo)",
+      "subtitle": "3 Original MCQs + 1 FRQ · Data Table & Desmos Calculator",
+      "subject": "AP Statistics",
+      "subjectZh": "统计学（演示样例）",
+      "subjectKey": "stats",
+      "isExtended": false,
+      "folderPath": ["Demo Walkthroughs"],
+      "category": "quiz",
+      "mode": "native",
+      "tier": 1,
+      "mcqCount": 3,
+      "frqCount": 1,
+      "pageCount": 0,
+      "hasAnswers": true,
+      "hasExplanations": true,
+      "calculator": "graphing",
+      "referencePdf": "",
+      "referenceType": "builtin_chem",
+      "durationSeconds": 600,
+      "frqDurationSeconds": 600
+    },
+    {
+      "id": "demo_csa",
+      "title": "Sample Computer Science A Walkthrough (Original Demo)",
+      "subtitle": "2 Original MCQs + 1 Interactive Java FRQ Editor",
+      "subject": "AP Computer Science A",
+      "subjectZh": "计算机科学 A（演示样例）",
+      "subjectKey": "csa",
+      "isExtended": false,
+      "folderPath": ["Demo Walkthroughs"],
+      "category": "frq",
+      "mode": "native",
+      "tier": 1,
+      "mcqCount": 2,
+      "frqCount": 1,
+      "pageCount": 0,
+      "hasAnswers": true,
+      "hasExplanations": true,
+      "calculator": "none",
+      "referencePdf": "",
+      "referenceType": "",
+      "durationSeconds": 600,
+      "frqDurationSeconds": 600
+    }
+  ]
+}

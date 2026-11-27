@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="100 100 824 824" fill="none">
+  <defs>
+    <linearGradient id="rmBgGrad" x1="150" y1="120" x2="880" y2="910" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3A66F5"/>
+      <stop offset="52%" stop-color="#2646C4"/>
+      <stop offset="100%" stop-color="#182A78"/>
+    </linearGradient>
+    <radialGradient id="rmTopGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(275 215) rotate(42) scale(560)">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.26"/>
+      <stop offset="60%" stop-color="#8CB0FF" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#182A78" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rmPageGrad" x1="250" y1="300" x2="740" y2="710" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#EBF1FF"/>
+    </linearGradient>
+    <linearGradient id="rmSealGrad" x1="620" y1="535" x2="778" y2="742" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFF07A"/>
+      <stop offset="52%" stop-color="#FDDB00"/>
+      <stop offset="100%" stop-color="#F2A900"/>
+    </linearGradient>
+    <linearGradient id="rmStarGrad" x1="748" y1="196" x2="748" y2="304" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#FFF099"/>
+    </linearGradient>
+    <clipPath id="rmSquircleClip">
+      <rect x="100" y="100" width="824" height="824" rx="185"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#rmSquircleClip)">
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#rmBgGrad)"/>
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#rmTopGlow)"/>
+
+    <path d="M 244 352 Q 370 338 492 362 L 492 732 Q 370 708 244 722 Q 226 724 226 704 L 226 372 Q 226 354 244 352 Z" fill="#AEBEFA"/>
+    <path d="M 740 352 Q 614 338 492 362 L 492 732 Q 614 708 740 722 Q 758 724 758 704 L 758 372 Q 758 354 740 352 Z" fill="#9EB2F8"/>
+
+    <path d="M 252 326 Q 372 308 492 336 L 492 710 Q 372 684 252 700 Q 236 702 236 684 L 236 344 Q 236 328 252 326 Z" fill="url(#rmPageGrad)"/>
+    <path d="M 732 326 Q 612 308 492 336 L 492 710 Q 612 684 732 700 Q 748 702 748 684 L 748 344 Q 748 328 732 326 Z" fill="url(#rmPageGrad)"/>
+    <line x1="492" y1="336" x2="492" y2="710" stroke="#B7C8F7" stroke-width="5" stroke-linecap="round"/>
+
+    <rect x="276" y="388" width="150" height="22" rx="11" fill="#324EC7" fill-opacity="0.88"/>
+    <rect x="276" y="438" width="176" height="16" rx="8" fill="#B6C6F5"/>
+    <rect x="276" y="476" width="164" height="16" rx="8" fill="#C7D4FA"/>
+    <rect x="276" y="514" width="140" height="16" rx="8" fill="#C7D4FA"/>
+    <rect x="276" y="566" width="152" height="58" rx="14" fill="#E3EBFF" stroke="#AFC2FA" stroke-width="4"/>
+
+    <circle cx="546" cy="402" r="14" fill="#E3EBFF" stroke="#8CA6F2" stroke-width="5"/>
+    <rect x="576" y="394" width="124" height="16" rx="8" fill="#C7D4FA"/>
+    <circle cx="546" cy="458" r="14" fill="#324EC7"/>
+    <rect x="576" y="450" width="112" height="16" rx="8" fill="#6F8BE8"/>
+    <circle cx="546" cy="514" r="14" fill="#E3EBFF" stroke="#8CA6F2" stroke-width="5"/>
+    <rect x="576" y="506" width="98" height="16" rx="8" fill="#C7D4FA"/>
+
+    <path d="M 748 196 C 753 230 766 243 800 248 C 766 253 753 266 748 300 C 743 266 730 253 696 248 C 730 243 743 230 748 196 Z" fill="url(#rmStarGrad)"/>
+
+    <circle cx="696" cy="642" r="134" fill="#FFFFFF"/>
+    <circle cx="696" cy="642" r="116" fill="url(#rmSealGrad)"/>
+    <path d="M 642 644 L 680 682 L 754 602" stroke="#16296B" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
