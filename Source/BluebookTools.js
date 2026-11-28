@@ -12,19 +12,45 @@
   let refRenderedPath = '';
   let refObserver = null;
 
+  function syncThemeButtons(theme) {
+    const isDark = theme === 'dark';
+    const lbl = isDark ? '☀ Light' : '☾ Dark';
+    document.querySelectorAll('[data-action="room-toggle-theme"]').forEach((btn) => {
+      btn.setAttribute('aria-pressed', isDark ? 'true' : 'false');
+      const span = btn.querySelector('span');
+      if (span) span.textContent = lbl;
+      else btn.textContent = lbl;
+    });
+    document.querySelectorAll('[data-theme-pick]').forEach((btn) => {
+      const active = btn.dataset.themePick === theme;
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+  }
+
+  window.roomSetTheme = function (theme, opts = {}) {
+    const next = theme === 'dark' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', next);
+    if (opts.persist !== false) {
+      try { localStorage.setItem(THEME_KEY, next); } catch (_) {}
+    }
+    window.webkit?.messageHandlers?.roomSetTheme?.postMessage(next);
+    syncThemeButtons(next);
+    return next;
+  };
+
   window.roomInitTheme = function () {
-    const saved = localStorage.getItem(THEME_KEY) || 'light';
-    document.documentElement.setAttribute('data-theme', saved);
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === 'dark' || saved === 'light') {
+      return window.roomSetTheme(saved, { persist: false });
+    }
+    const sysDark = Boolean(window.matchMedia?.('(prefers-color-scheme: dark)')?.matches);
+    return window.roomSetTheme(sysDark ? 'dark' : 'light', { persist: false });
   };
 
   window.roomToggleTheme = function () {
     const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-    const next = cur === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    localStorage.setItem(THEME_KEY, next);
-    document.querySelectorAll('[data-action="room-toggle-theme"]').forEach((btn) => {
-      btn.setAttribute('aria-pressed', next === 'dark' ? 'true' : 'false');
-    });
+    return window.roomSetTheme(cur === 'dark' ? 'light' : 'dark', { persist: true });
   };
 
   // Call immediately on load

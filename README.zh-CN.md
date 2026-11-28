@@ -47,26 +47,26 @@
 
 ---
 
-## 下载 Release 预编译版本（`v1.0.0`）
+## 下载 Release 预编译版本（`v1.1.0`）
 
 macOS、Windows（零依赖）与跨平台便携网页版均已在 [GitHub Releases](https://github.com/RanchoNICEGUY/ap-exam-room/releases/latest) 发布：
 
 | 平台 | Release 安装包 | 运行依赖 | 说明 |
 | --- | --- | --- | --- |
-| **Windows 10 / 11** | `AP-Exam-Room-Windows-ZeroDep-v1.0.0.zip` | 系统自带 PowerShell + Edge / Chrome | **零额外依赖**（无需 Python / Node / 管理员权限），解压后双击 `Start-APExamRoom.bat` 即用 |
-| **macOS**（桌面原生端） | `AP-Exam-Room-macOS-v1.0.0.zip` | macOS 13+ | 原生 Swift + `WKWebView` + PDFKit 封装（`AP 模考室.app`），首次打开需清除隔离属性（见下方） |
-| **跨平台 Web / iPad** | `AP-Exam-Room-Portable-Web-v1.0.0.zip` | Python 3 + 现代浏览器 | 运行 `python3 dev_server.py --lan` 可在同一 Wi-Fi 下的 iPad Safari 添加到主屏幕使用 |
+| **Windows 10 / 11** | `AP-Exam-Room-Windows-ZeroDep-v1.1.0.zip` | 系统自带 PowerShell + Edge / Chrome | **零额外依赖**（无需 Python / Node / 管理员权限），解压后双击 `Start-APExamRoom.bat` 即用 |
+| **macOS**（桌面原生端） | `AP-Exam-Room-macOS-v1.1.0.zip` | macOS 13+ | 原生 Swift + `WKWebView` + PDFKit 封装（`AP 模考室.app`），统一透明标题栏，首次打开需清除隔离属性（见下方） |
+| **跨平台 Web / iPad** | `AP-Exam-Room-Portable-Web-v1.1.0.zip` | Python 3 + 现代浏览器 | 运行 `python3 dev_server.py --lan` 可在同一 Wi-Fi 下的 iPad Safari 添加到主屏幕使用 |
 
 ### 各平台安装与使用说明
 
 #### 1. Windows 零依赖版（推荐 Windows 用户）
-1. 下载并解压 `AP-Exam-Room-Windows-ZeroDep-v1.0.0.zip` 到任意本地文件夹（例如 `D:\AP-Exam-Room\`）。
+1. 下载并解压 `AP-Exam-Room-Windows-ZeroDep-v1.1.0.zip` 到任意本地文件夹（例如 `D:\AP-Exam-Room\`）。
 2. 双击 **`Start-APExamRoom.bat`**：将自动通过 PowerShell 启动本地 HTTP 服务并在独立浏览器应用窗口中打开。
 3. *（可选）* 双击 `设置题库PDF路径.bat` 选择你自备的本地 PDF 题库目录，程序内置离线 PDF.js 直接渲染。
 4. *（可选）* 安装任意免费 JDK（`javac.exe`，如 Eclipse Temurin JDK 17/21）后，即可在 AP CSA FRQ 中点击 **Run Java** 本地编译运行。
 
 #### 2. macOS 原生客户端
-1. 下载解压 `AP-Exam-Room-macOS-v1.0.0.zip`，将 `AP 模考室.app` 拖入 `/Applications`。
+1. 下载解压 `AP-Exam-Room-macOS-v1.1.0.zip`，将 `AP 模考室.app` 拖入 `/Applications`。
 2. 由于开源版采用本地自签名（Ad-hoc）而非 Apple 付费公证，首次打开若提示“已损坏”或“无法验证开发者”，请在终端执行一次清理隔离属性：
    ```bash
    xattr -cr "/Applications/AP 模考室.app"
@@ -87,24 +87,26 @@ python3 dev_server.py --lan   # 在局域网暴露 http://<本机IP>:18990/index
 
 ## 核心功能亮点
 
-- **高度还原的机考作答体验**：双栏/单栏自适应题面、KaTeX 公式渲染、`ABC` 选项划除、Mark for Review 书签、文本高亮与草稿笔记抽屉、题号网格导航与深浅色主题无缝切换。
+- **学习统计与交互热力图（`Stats.js`）**：类 Anki 年度刷题热力图（支持题目数/套卷数切换）、每日目标圆环、分科目完成度、正确率及单题耗时统计（`min/Q`）。
+- **首次引导与个人学习目标（`Settings.js`）**：内置新手引导弹窗，支持昵称预览、跟随系统的浅色/深色主题、每日刷题目标（`10–50 Qs/day`）与重点学科侧边栏置顶。
+- **高度还原的机考作答体验**：双栏/单栏自适应题面、KaTeX 公式渲染、持久化 `ABC` 选项划除、Mark for Review 书签、文本高亮与草稿笔记抽屉、题号网格导航，macOS 端配备一体化透明标题栏并自动联动系统 `NSAppearance`。
 - **可流畅拖拽与动画侧边停靠的工具弹窗**：Desmos 图形/科学计算器（附离线画布兜底）与公式速查弹窗全面支持 Pointer Events 拖拽、拖至左右边缘触发半透明停靠预览与主区域平滑让位、拖拽分隔条调宽，且进入 *Check Your Work* 等非作答页面时自动全部收起。
 - **练习即时反馈 + 撒花动画**：开启练习模式点击 **Check Answer** 弹出全宽反馈底栏，**Continue** 零像素对齐覆盖原按钮实现原位连续点击，展开平滑解析抽屉并触发音效与 2× 视网膜画布撒花特效。
-- **AP CSA Java 交互编辑器**：支持输入 Java 方法或片段并调用本机 `javac` / `java` 实时输出编译/运行结果。
+- **AP CSA Java 交互编辑器**：支持输入 Java 方法或片段并调用本机 `javac` / `java` 实时输出编译/运行结果，支持 FRQ 视频讲解懒加载抽屉。
 - **双栏 PDF 刷题模式**：macOS 使用原生 PDFKit（`pdf_helper.swift`），Windows 与便携 Web 使用内置离线 PDF.js，右侧配套交互答题卡与 FRQ 评分细则核对。
-- **错题本、历史记录与 Anki 一键导出**：本地持久化成绩历史（`History.swift` SQLite / 浏览器存储）、错题一键收藏与专项重练、JSON 备份还原及 AnkiConnect 推送。
+- **错题本、历史记录与 Anki 一键导出**：SQLite 多端同步持久化（`History.swift` / `dev_server.py`）、错题一键收藏与专项重练、JSON 备份还原及 AnkiConnect 推送。
 
 ---
 
 ## 全界面截图展示
 
-以下 16 张 2× Retina 截图均基于仓库自带的 **3 套原创演示卷（Demo）** 在无头 Chromium 下实拍：
+以下 18 张 2× Retina 截图均基于仓库自带的 **3 套原创演示卷（Demo）** 在无头 Chromium 下实拍：
 
-### 1. 题库首页与开考设置
+### 1. 首次引导、题库首页与开考设置
 
-| 题库主页（浅色） | 题库主页（深色） | 模考 / 练习设置弹窗 |
-| :---: | :---: | :---: |
-| ![Question Bank Light](docs/screenshots/01-question-bank-light.png) | ![Question Bank Dark](docs/screenshots/02-question-bank-dark.png) | ![Test Setup](docs/screenshots/03-test-setup-dialog.png) |
+| 首次使用引导设置 | 题库主页（浅色） | 题库主页（深色） | 模考 / 练习设置弹窗 |
+| :---: | :---: | :---: | :---: |
+| ![Onboarding Wizard](docs/screenshots/00-onboarding-wizard.png) | ![Question Bank Light](docs/screenshots/01-question-bank-light.png) | ![Question Bank Dark](docs/screenshots/02-question-bank-dark.png) | ![Test Setup](docs/screenshots/03-test-setup-dialog.png) |
 
 ### 2. 作答区、即时批改与侧边停靠弹窗
 
@@ -122,11 +124,11 @@ python3 dev_server.py --lan   # 在局域网暴露 http://<本机IP>:18990/index
 | :---: | :---: | :---: |
 | ![Break Screen](docs/screenshots/10-break-screen.png) | ![CSA FRQ](docs/screenshots/11-frq-csa-code-editor.png) | ![Completion](docs/screenshots/12-completion-screen.png) |
 
-### 4. 成绩总览、错题本、测试历史与设置
+### 4. 学习统计热力图、成绩总览、错题本、测试历史与设置
 
-| 成绩复盘总览 | 错题本与 Anki 推送 | 模考历史记录 | 应用设置与备份 |
-| :---: | :---: | :---: | :---: |
-| ![Results](docs/screenshots/13-test-results-overview.png) | ![Mistake Bank](docs/screenshots/14-mistake-bank.png) | ![Test History](docs/screenshots/15-test-history.png) | ![Settings](docs/screenshots/16-settings.png) |
+| 学习统计与热力图 | 成绩复盘总览 | 错题本与 Anki 推送 | 模考历史记录 | 应用设置与备份 |
+| :---: | :---: | :---: | :---: | :---: |
+| ![Stats Dashboard](docs/screenshots/17-stats-dashboard.png) | ![Results](docs/screenshots/13-test-results-overview.png) | ![Mistake Bank](docs/screenshots/14-mistake-bank.png) | ![Test History](docs/screenshots/15-test-history.png) | ![Settings](docs/screenshots/16-settings.png) |
 
 ---
 

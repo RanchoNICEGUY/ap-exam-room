@@ -47,26 +47,26 @@ All non-original visual assets and bundled libraries are itemized with ownership
 
 ---
 
-## Download Latest Release (`v1.0.0`)
+## Download Latest Release (`v1.1.0`)
 
 Prebuilt packages for **macOS**, **Windows**, and **Portable Web** are available on the [GitHub Releases](https://github.com/RanchoNICEGUY/ap-exam-room/releases/latest) page:
 
 | Platform | Package | Requirements | Notes |
 | --- | --- | --- | --- |
-| **Windows 10 / 11** | `AP-Exam-Room-Windows-ZeroDep-v1.0.0.zip` | Built-in PowerShell + Microsoft Edge / Chrome | **Zero dependencies** (no Python/Node/admin required); unzip and double-click `Start-APExamRoom.bat` |
-| **macOS** (Apple Silicon / Universal) | `AP-Exam-Room-macOS-v1.0.0.zip` | macOS 13+ | Native Swift + `WKWebView` + PDFKit app (`AP 模考室.app`); see Gatekeeper note below |
-| **Cross-Platform / iPad LAN** | `AP-Exam-Room-Portable-Web-v1.0.0.zip` | Python 3 + modern browser | Run `python3 dev_server.py --lan` to open on Mac, Linux, Windows, or iPad Safari (PWA) |
+| **Windows 10 / 11** | `AP-Exam-Room-Windows-ZeroDep-v1.1.0.zip` | Built-in PowerShell + Microsoft Edge / Chrome | **Zero dependencies** (no Python/Node/admin required); unzip and double-click `Start-APExamRoom.bat` |
+| **macOS** (Apple Silicon / Universal) | `AP-Exam-Room-macOS-v1.1.0.zip` | macOS 13+ | Native Swift + `WKWebView` + PDFKit app (`AP 模考室.app`); unified transparent titlebar; see Gatekeeper note below |
+| **Cross-Platform / iPad LAN** | `AP-Exam-Room-Portable-Web-v1.1.0.zip` | Python 3 + modern browser | Run `python3 dev_server.py --lan` to open on Mac, Linux, Windows, or iPad Safari (PWA) |
 
 ### Platform Quick Start
 
 #### Windows (Zero-Dependency Standalone)
-1. Download and extract `AP-Exam-Room-Windows-ZeroDep-v1.0.0.zip` anywhere (for example `D:\AP-Exam-Room\`).
+1. Download and extract `AP-Exam-Room-Windows-ZeroDep-v1.1.0.zip` anywhere (for example `D:\AP-Exam-Room\`).
 2. Double-click **`Start-APExamRoom.bat`** — PowerShell starts a lightweight local server (`127.0.0.1`) and opens AP Exam Room in an isolated Edge/Chrome app window.
 3. *(Optional)* Double-click `设置题库PDF路径.bat` to point the viewer to a local folder of your own study PDFs.
 4. *(Optional)* Install any free JDK (`javac.exe`, e.g., Eclipse Temurin JDK 17/21) to run AP CSA Java code locally via **Run Java**.
 
 #### macOS (Native Desktop App)
-1. Download `AP-Exam-Room-macOS-v1.0.0.zip`, unzip `AP 模考室.app`, and move it to `/Applications`.
+1. Download `AP-Exam-Room-macOS-v1.1.0.zip`, unzip `AP 模考室.app`, and move it to `/Applications`.
 2. Because this open-source build is ad-hoc signed rather than Apple-notarized, macOS Gatekeeper may flag downloaded zips on first launch. Clear the quarantine attribute once before opening:
    ```bash
    xattr -cr "/Applications/AP 模考室.app"
@@ -87,24 +87,26 @@ Open that LAN URL in Safari on iPad and tap **Share → Add to Home Screen** for
 
 ## Key Features
 
-- **Bluebook-Style Exam Runner**: Split-pane and single-flow question layouts, KaTeX formulas, `ABC` option strikeout/elimination, `Mark for Review`, highlights & scratchpad notes, Question Navigator modal, and Light / Dark themes.
+- **Study Statistics & Review Heatmap (`Stats.js`)**: Anki-style yearly interactive Review Heatmap (questions/sets toggle), daily goal ring, subject completion breakdown, accuracy trends, and timed `min/Q` pace tracking.
+- **First-Run Onboarding & Profile Goals (`Settings.js`)**: Clean welcome setup for name, Light/Dark system theme detection, daily study target (`10–50 Qs/day`), and pinned focus AP subjects.
+- **Bluebook-Style Exam Runner**: Split-pane and single-flow question layouts, KaTeX formulas, persistent `ABC` option strikeout/elimination, `Mark for Review`, highlights & scratchpad notes, Question Navigator modal, and native macOS unified transparent titlebar syncing `NSAppearance`.
 - **Smooth Drag & Side-Dock Popups**: Pointer-event dragging across **Desmos Calculator** (with offline canvas graphing/scientific fallback) and **Reference Sheet**; drag to left/right viewport edges for animated snap preview & workspace reflow, adjust width with corner/edge splitters, and auto-close every popup cleanly when entering *Check Your Work*.
 - **Instant Practice Mode + Confetti**: Full-width bottom feedback dock keeping **Continue** aligned directly over **Check Answer**, animated explanation drawer, audio feedback cues, and 2× Retina confetti.
-- **Interactive Java FRQ Editor (AP CSA)**: Built-in Java code editor with local `javac` / `java` compilation & stdout/stderr panel.
+- **Interactive Java FRQ Editor (AP CSA)**: Built-in Java code editor with local `javac` / `java` compilation, stdout/stderr panel, and lazy-loaded FRQ video walkthrough drawer.
 - **Dual-Pane PDF Engine**: Native PDFKit rendering on macOS (`pdf_helper.swift`) and bundled offline Mozilla PDF.js on Windows / Web, paired with an interactive MCQ bubble sheet & FRQ rubric checklist.
-- **Mistake Bank, History & Anki Export**: Persistent history (`History.swift` SQLite / browser storage), targeted missed-question re-practice, JSON export/import, and one-click AnkiConnect push.
+- **Mistake Bank, History & Anki Export**: Persistent SQLite sync (`History.swift` / `dev_server.py`), targeted missed-question re-practice, JSON export/import, and one-click AnkiConnect push.
 
 ---
 
 ## Interface Screenshots
 
-All 16 screenshots below were captured in headless Chromium at 2× Retina scale using strictly the **3 original demo sets**:
+All 18 screenshots below were captured in headless Chromium at 2× Retina scale using strictly the **3 original demo sets**:
 
-### 1. Question Bank & Setup
+### 1. Onboarding, Question Bank & Setup
 
-| Question Bank (Light) | Question Bank (Dark) | Test Setup Dialog |
-| :---: | :---: | :---: |
-| ![Question Bank Light](docs/screenshots/01-question-bank-light.png) | ![Question Bank Dark](docs/screenshots/02-question-bank-dark.png) | ![Test Setup](docs/screenshots/03-test-setup-dialog.png) |
+| First-Run Onboarding | Question Bank (Light) | Question Bank (Dark) | Test Setup Dialog |
+| :---: | :---: | :---: | :---: |
+| ![Onboarding Wizard](docs/screenshots/00-onboarding-wizard.png) | ![Question Bank Light](docs/screenshots/01-question-bank-light.png) | ![Question Bank Dark](docs/screenshots/02-question-bank-dark.png) | ![Test Setup](docs/screenshots/03-test-setup-dialog.png) |
 
 ### 2. Exam Workspace, Practice Feedback & Side-Docking Popups
 
@@ -122,11 +124,11 @@ All 16 screenshots below were captured in headless Chromium at 2× Retina scale 
 | :---: | :---: | :---: |
 | ![Break Screen](docs/screenshots/10-break-screen.png) | ![CSA FRQ](docs/screenshots/11-frq-csa-code-editor.png) | ![Completion](docs/screenshots/12-completion-screen.png) |
 
-### 4. Results, Mistake Bank, History & Settings
+### 4. Stats Heatmap, Results, Mistake Bank, History & Settings
 
-| Test Results Overview | Mistake Bank | Test History | Settings |
-| :---: | :---: | :---: | :---: |
-| ![Results](docs/screenshots/13-test-results-overview.png) | ![Mistake Bank](docs/screenshots/14-mistake-bank.png) | ![Test History](docs/screenshots/15-test-history.png) | ![Settings](docs/screenshots/16-settings.png) |
+| Study Stats & Review Heatmap | Test Results Overview | Mistake Bank | Test History | Settings |
+| :---: | :---: | :---: | :---: | :---: |
+| ![Stats Dashboard](docs/screenshots/17-stats-dashboard.png) | ![Results](docs/screenshots/13-test-results-overview.png) | ![Mistake Bank](docs/screenshots/14-mistake-bank.png) | ![Test History](docs/screenshots/15-test-history.png) | ![Settings](docs/screenshots/16-settings.png) |
 
 ---
 

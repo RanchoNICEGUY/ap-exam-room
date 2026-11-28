@@ -23,6 +23,16 @@
     return state.pdf;
   }
 
+  window.roomGetPdfExamState = function () {
+    const ex = typeof getCurrentExam === 'function' ? getCurrentExam() : null;
+    if (!ex || ex.mode !== 'pdf') return null;
+    return { ex, p: initPdfState(ex) };
+  };
+  window.roomRenderPdfExam = function () {
+    if (typeof saveState === 'function') saveState();
+    if (typeof render === 'function') render();
+  };
+
   function prefetchNeighborPages(pdfRel, page, endPage) {
     if (page + 1 <= endPage) {
       if (typeof window.roomPrefetchPdfPage === 'function') {
@@ -198,11 +208,11 @@
           <section class="pdf-viewer-pane">
             <div class="pdf-viewer-toolbar">
               <div class="pdf-nav-group">
-                <button type="button" class="pdf-tb-btn" data-pdf-act="prev-page">◀</button>
+                <button type="button" class="pdf-tb-btn" data-pdf-act="prev-page" aria-label="Previous page">◀</button>
                 <span class="pdf-page-ind">
-                  ${p.showAnswerSplit ? 'Answer Key ' : ''}P.<input type="number" id="pdf-page-jump" value="${p.showAnswerSplit ? p.ansPage : p.currentPage}" min="1" max="${ex.totalPages || 999}"> / ${p.showAnswerSplit ? (ex.answerPageEnd || '?') : p.endPage}
+                  <span class="pdf-page-prefix">${p.showAnswerSplit ? 'Key P.' : 'P.'}</span><input type="number" id="pdf-page-jump" value="${p.showAnswerSplit ? p.ansPage : p.currentPage}" min="1" max="${ex.totalPages || 999}" aria-label="Current PDF page"><span class="pdf-page-total">/ ${p.showAnswerSplit ? (ex.answerPageEnd || '?') : p.endPage}</span>
                 </span>
-                <button type="button" class="pdf-tb-btn" data-pdf-act="next-page">▶</button>
+                <button type="button" class="pdf-tb-btn" data-pdf-act="next-page" aria-label="Next page">▶</button>
               </div>
               <div class="pdf-tool-group">
                 <button type="button" class="pdf-tb-btn" data-pdf-act="zoom-out">−</button>
@@ -416,9 +426,9 @@
             <div class="pdf-viewer-toolbar">
               <span>${ex.answerPdfRel ? 'Answer Key PDF' : 'No Separate Answer Key Paired'}</span>
               ${ex.answerPdfRel ? `<div class="pdf-nav-group">
-                <button type="button" class="pdf-tb-btn" id="pdf-res-prev">◀</button>
-                <span>P.${ansPage} / ${ex.answerPageEnd || '?'}</span>
-                <button type="button" class="pdf-tb-btn" id="pdf-res-next">▶</button>
+                <button type="button" class="pdf-tb-btn" id="pdf-res-prev" aria-label="Previous answer key page">◀</button>
+                <span class="pdf-page-ind">P.${ansPage} <span class="pdf-page-total">/ ${ex.answerPageEnd || '?'}</span></span>
+                <button type="button" class="pdf-tb-btn" id="pdf-res-next" aria-label="Next answer key page">▶</button>
               </div>` : ''}
             </div>
             <div class="pdf-canvas-scroll">

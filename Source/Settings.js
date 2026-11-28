@@ -3,23 +3,337 @@ const roomBackupFormat = 'ap-exam-room-backup';
 const roomDeleteOptions = {
   history: ['Completed attempts', 'Deletes scores, responses, and reviews from Test History.'],
   progress: ['In-progress tests', 'Deletes saved answers, notes, and timers for tests you have not submitted.'],
-  imports: ['Imported tests', 'Removes your imported tests and any attempts or saved progress for those tests.']
+  mistakes: ['Mistake Bank', 'Clears saved and automatically collected missed questions.'],
+  imports: ['Imported tests', 'Removes your imported tests and any attempts or saved progress for those tests.'],
+  profile: ['Profile & preferences', 'Resets your display name, theme, daily goal, and re-enables first-load Welcome Setup.']
+};
+
+window.roomGetPreferences = function () {
+  const raw = readLibrary(roomPreferencesKey, {});
+  return (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+};
+
+window.roomUpdatePreferences = function (patch) {
+  const next = { ...roomGetPreferences(), ...(patch || {}) };
+  localStorage.setItem(roomPreferencesKey, JSON.stringify(next));
+  return next;
+};
+
+window.roomUserName = function () {
+  return String(roomGetPreferences().userName || '').trim().slice(0, 40);
+};
+
+window.roomDailyGoal = function () {
+  const raw = roomGetPreferences().dailyGoal;
+  if (raw === 0 || raw === '0') return 0;
+  const n = Number(raw);
+  if (Number.isFinite(n) && n > 0) return Math.min(200, Math.max(5, Math.round(n)));
+  return 20;
+};
+
+window.roomFocusSubjects = function () {
+  const list = roomGetPreferences().focusSubjects;
+  return Array.isArray(list) ? list.map(String).filter(Boolean) : [];
+};
+
+window.roomHasAnyUserData = function () {
+  try {
+    if (typeof allAttempts === 'function' && allAttempts().length > 0) return true;
+    if (typeof databaseAttempts !== 'undefined' && Array.isArray(databaseAttempts) && databaseAttempts.length > 0) return true;
+    if (typeof loadGlobalMistakes === 'function' && loadGlobalMistakes().length > 0) return true;
+    if (Object.keys(readLibrary(libraryImportKey, {})).length > 0) return true;
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith('bluebook_exam_state_')) continue;
+      const snap = readLibrary(k, {});
+      if (snap && snap.phase && snap.phase !== 'intro') return true;
+    }
+  } catch (_) {}
+  return false;
+};
+
+window.roomShouldShowOnboarding = function () {
+  const prefs = roomGetPreferences();
+  return !prefs.onboarded && !roomUserName() && !roomHasAnyUserData();
 };
 
 function roomCopyAllowed() {
-  return readLibrary(roomPreferencesKey, {}).allowCopy !== false;
+  return roomGetPreferences().allowCopy !== false;
 }
 
 function roomPetsAllowed() {
-  return readLibrary(roomPreferencesKey, {}).showPets !== false;
+  return roomGetPreferences().showPets !== false;
 }
 
+let onboardingChecked = false;
+window.roomMaybeOpenOnboarding = function () {
+  if (onboardingChecked) return;
+  if (typeof state !== 'undefined' && state?.phase && state.phase !== 'intro') return;
+  if (document.querySelector('dialog[open]')) return;
+  if (!document.querySelector('.room')) return;
+  onboardingChecked = true;
+  if (roomShouldShowOnboarding()) {
+    window.openRoomOnboarding({ manual: false });
+  }
+};
+setTimeout(() => { window.roomMaybeOpenOnboarding?.(); }, 750);
+
+window.openRoomOnboarding = function (opts = {}) {
+  const manual = Boolean(opts.manual);
+  if (document.getElementById('room-onboarding-dialog')) return;
+
+  const prevTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  let draftName = roomUserName();
+  let draftTheme = prevTheme;
+  let draftGoal = roomDailyGoal();
+  const draftSubjects = new Set(roomFocusSubjects());
+  const mainSubjects = typeof getSubjectsList === 'function' ? getSubjectsList().filter(s => !s.isExtended) : [];
+
+  const greetingWord = () => {
+    const h = new Date().getHours();
+    return h < 5 ? 'Hello' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  };
+  const formatGreetingPreview = (nm) => {
+    const clean = String(nm || '').trim().slice(0, 40);
+    return clean ? `${greetingWord()}, ${clean}.` : `${greetingWord()}.`;
+  };
+
+  const goalChoices = [
+    { val: 0, label: 'Off' },
+    { val: 10, label: '10 Qs/day' },
+    { val: 20, label: '20 Qs/day' },
+    { val: 30, label: '30 Qs/day' },
+    { val: 50, label: '50 Qs/day' },
+  ];
+
+  const dialog = document.createElement('dialog');
+  dialog.id = 'room-onboarding-dialog';
+  dialog.className = 'room-dialog room-onboard-dialog';
+  dialog.setAttribute('aria-labelledby', 'room-onboard-title');
+  dialog.innerHTML = `<form method="dialog" class="room-onboard-form">
+    <div class="room-onboard-head">
+      <span class="room-mark">${typeof roomLogo === 'function' ? roomLogo() : ''}</span>
+      <div>
+        <h2 id="room-onboard-title">${manual ? 'Personalize AP Exam Room' : 'Welcome to AP Exam Room'}</h2>
+        <p class="room-onboard-sub">Set up your name and theme — you can change these anytime in Settings.</p>
+      </div>
+    </div>
+
+    <div class="room-onboard-section">
+      <label class="room-onboard-label" for="onboard-name">What should we call you?</label>
+      <input type="text" id="onboard-name" class="room-onboard-input" maxlength="40" placeholder="Enter your name (optional)" value="${escapeHtml(draftName)}" autocomplete="name">
+      <div class="room-onboard-preview" id="onboard-greeting-preview">${escapeHtml(formatGreetingPreview(draftName))}</div>
+    </div>
+
+    <div class="room-onboard-section">
+      <span class="room-onboard-label">Choose your appearance</span>
+      <div class="room-theme-grid" role="group" aria-label="Appearance theme">
+        <button type="button" class="room-theme-card ${draftTheme === 'light' ? 'is-active' : ''}" data-onboard-theme="light" aria-pressed="${draftTheme === 'light'}">
+          <div class="room-theme-mock is-light" aria-hidden="true">
+            <span class="rtm-bar"></span>
+            <span class="rtm-card"><i></i><b></b></span>
+          </div>
+          <span class="room-theme-card-lbl"><strong>☀ Light</strong><small>Bright paper look</small></span>
+        </button>
+        <button type="button" class="room-theme-card ${draftTheme === 'dark' ? 'is-active' : ''}" data-onboard-theme="dark" aria-pressed="${draftTheme === 'dark'}">
+          <div class="room-theme-mock is-dark" aria-hidden="true">
+            <span class="rtm-bar"></span>
+            <span class="rtm-card"><i></i><b></b></span>
+          </div>
+          <span class="room-theme-card-lbl"><strong>☾ Dark</strong><small>Low-glare slate</small></span>
+        </button>
+      </div>
+    </div>
+
+    <div class="room-onboard-section">
+      <span class="room-onboard-label">Daily study goal <span class="room-onboard-opt">(optional)</span></span>
+      <div class="room-goal-pills" role="group" aria-label="Daily study goal">
+        ${goalChoices.map(g => `<button type="button" class="room-goal-pill ${draftGoal === g.val ? 'is-active' : ''}" data-onboard-goal="${g.val}" aria-pressed="${draftGoal === g.val}">${g.label}</button>`).join('')}
+      </div>
+    </div>
+
+    ${mainSubjects.length ? `<div class="room-onboard-section">
+      <span class="room-onboard-label">Focus AP subjects <span class="room-onboard-opt">(pins to top of sidebar)</span></span>
+      <div class="room-subj-chips" role="group" aria-label="Focus AP subjects">
+        ${mainSubjects.map(s => {
+          const active = draftSubjects.has(s.key);
+          return `<button type="button" class="room-subj-chip ${active ? 'is-active' : ''}" data-onboard-subj="${escapeHtml(s.key)}" aria-pressed="${active}">
+            <img src="Assets/icons/${escapeHtml(s.icon || 'folder.svg')}" alt="" width="16" height="16">
+            <span>${escapeHtml(s.zh || s.name)}</span>
+          </button>`;
+        }).join('')}
+      </div>
+    </div>` : ''}
+
+    <div class="room-row-actions room-onboard-actions">
+      <button type="button" class="btn btn-secondary" data-onboard-skip>${manual ? 'Cancel' : 'Skip for now'}</button>
+      <button type="submit" class="btn room-yellow" data-onboard-save>${manual ? 'Save Setup' : 'Start Studying'}</button>
+    </div>
+  </form>`;
+
+  document.body.appendChild(dialog);
+
+  const nameInput = dialog.querySelector('#onboard-name');
+  const previewEl = dialog.querySelector('#onboard-greeting-preview');
+  nameInput?.addEventListener('input', () => {
+    draftName = nameInput.value;
+    if (previewEl) previewEl.textContent = formatGreetingPreview(draftName);
+  });
+
+  dialog.addEventListener('click', (e) => {
+    const themeBtn = e.target.closest('[data-onboard-theme]');
+    if (themeBtn) {
+      draftTheme = themeBtn.dataset.onboardTheme === 'dark' ? 'dark' : 'light';
+      dialog.querySelectorAll('[data-onboard-theme]').forEach(b => {
+        const on = b.dataset.onboardTheme === draftTheme;
+        b.classList.toggle('is-active', on);
+        b.setAttribute('aria-pressed', String(on));
+      });
+      window.roomSetTheme?.(draftTheme, { persist: false });
+      return;
+    }
+    const goalBtn = e.target.closest('[data-onboard-goal]');
+    if (goalBtn) {
+      draftGoal = Number(goalBtn.dataset.onboardGoal) || 0;
+      dialog.querySelectorAll('[data-onboard-goal]').forEach(b => {
+        const on = Number(b.dataset.onboardGoal) === draftGoal;
+        b.classList.toggle('is-active', on);
+        b.setAttribute('aria-pressed', String(on));
+      });
+      return;
+    }
+    const subjBtn = e.target.closest('[data-onboard-subj]');
+    if (subjBtn) {
+      const k = subjBtn.dataset.onboardSubj;
+      if (draftSubjects.has(k)) draftSubjects.delete(k);
+      else draftSubjects.add(k);
+      const on = draftSubjects.has(k);
+      subjBtn.classList.toggle('is-active', on);
+      subjBtn.setAttribute('aria-pressed', String(on));
+      return;
+    }
+    if (e.target.closest('[data-onboard-skip]')) {
+      if (manual) {
+        window.roomSetTheme?.(prevTheme, { persist: false });
+        dialog.close('cancel');
+      } else {
+        try { roomUpdatePreferences({ onboarded: true }); } catch (_) {}
+        window.roomSetTheme?.(draftTheme, { persist: true });
+        dialog.close('skip');
+        if (typeof renderLibrary === 'function') renderLibrary();
+      }
+    }
+  });
+
+  dialog.addEventListener('cancel', (e) => {
+    e.preventDefault();
+    if (manual) {
+      window.roomSetTheme?.(prevTheme, { persist: false });
+      dialog.close('cancel');
+    } else {
+      try { roomUpdatePreferences({ onboarded: true }); } catch (_) {}
+      window.roomSetTheme?.(draftTheme, { persist: true });
+      dialog.close('skip');
+      if (typeof renderLibrary === 'function') renderLibrary();
+    }
+  });
+
+  dialog.querySelector('form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const savedName = String(nameInput?.value || '').trim().slice(0, 40);
+    try {
+      roomUpdatePreferences({
+        userName: savedName,
+        dailyGoal: draftGoal,
+        focusSubjects: [...draftSubjects],
+        onboarded: true,
+      });
+    } catch (_) {}
+    window.roomSetTheme?.(draftTheme, { persist: true });
+    dialog.close('save');
+    if (typeof renderLibrary === 'function') renderLibrary();
+    window.showRoomToast?.(savedName ? `Welcome, ${savedName}!` : 'Workspace ready!');
+  });
+
+  dialog.addEventListener('close', () => dialog.remove(), { once: true });
+  dialog.showModal();
+  setTimeout(() => nameInput?.focus(), 40);
+};
+
 function roomSettingsMarkup() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const curTheme = isDark ? 'dark' : 'light';
+  const userName = roomUserName();
+  const dailyGoal = roomDailyGoal();
+  const focusSet = new Set(roomFocusSubjects());
+  const mainSubjects = typeof getSubjectsList === 'function' ? getSubjectsList().filter(s => !s.isExtended) : [];
+  const goalChoices = [
+    { val: 0, label: 'Off' },
+    { val: 10, label: '10 Qs/day' },
+    { val: 20, label: '20 Qs/day' },
+    { val: 30, label: '30 Qs/day' },
+    { val: 50, label: '50 Qs/day' },
+  ];
+
   return `<div class="room-settings">
     <h1>Settings</h1>
-    <p class="room-settings-intro">Manage your display, clipboard, and test data on this device.</p>
+    <p class="room-settings-intro">Manage your profile, study goals, appearance, clipboard, and test data on this device.</p>
+
+    <section class="room-settings-card">
+      <h2>Profile &amp; Study Goals</h2>
+      <p>Personalize your dashboard greeting, daily practice target, and pinned AP subjects.</p>
+      <div class="room-settings-block">
+        <label class="room-settings-subhead" for="room-user-name">Display Name</label>
+        <div class="room-settings-name-row">
+          <input type="text" id="room-user-name" maxlength="40" placeholder="Enter your name" value="${escapeHtml(userName)}" autocomplete="name">
+          <button type="button" class="btn btn-primary" id="room-save-name">Save Name</button>
+        </div>
+      </div>
+      <div class="room-settings-block">
+        <span class="room-settings-subhead">Daily Study Goal</span>
+        <div class="room-goal-pills" role="group" aria-label="Daily study goal">
+          ${goalChoices.map(g => `<button type="button" class="room-goal-pill ${dailyGoal === g.val ? 'is-active' : ''}" data-setting-goal="${g.val}" aria-pressed="${dailyGoal === g.val}">${g.label}</button>`).join('')}
+        </div>
+      </div>
+      ${mainSubjects.length ? `<div class="room-settings-block">
+        <span class="room-settings-subhead">My AP Subjects</span>
+        <p class="room-settings-hint">Selected subjects are pinned to the top of the sidebar and Stats page.</p>
+        <div class="room-subj-chips" role="group" aria-label="My AP Subjects">
+          ${mainSubjects.map(s => {
+            const active = focusSet.has(s.key);
+            return `<button type="button" class="room-subj-chip ${active ? 'is-active' : ''}" data-setting-subj="${escapeHtml(s.key)}" aria-pressed="${active}">
+              <img src="Assets/icons/${escapeHtml(s.icon || 'folder.svg')}" alt="" width="16" height="16">
+              <span>${escapeHtml(s.zh || s.name)}</span>
+            </button>`;
+          }).join('')}
+        </div>
+      </div>` : ''}
+      <div class="room-row-actions">
+        <button type="button" class="btn btn-secondary" id="room-reopen-onboarding">Run Welcome Setup</button>
+      </div>
+    </section>
+
     <section class="room-settings-card">
       <h2>Appearance</h2>
+      <div class="room-settings-block">
+        <span class="room-settings-subhead">Theme</span>
+        <div class="room-theme-grid" role="group" aria-label="Theme selection">
+          <button type="button" class="room-theme-card ${curTheme === 'light' ? 'is-active' : ''}" data-theme-pick="light" aria-pressed="${curTheme === 'light'}">
+            <div class="room-theme-mock is-light" aria-hidden="true">
+              <span class="rtm-bar"></span>
+              <span class="rtm-card"><i></i><b></b></span>
+            </div>
+            <span class="room-theme-card-lbl"><strong>☀ Light</strong><small>Bright paper look</small></span>
+          </button>
+          <button type="button" class="room-theme-card ${curTheme === 'dark' ? 'is-active' : ''}" data-theme-pick="dark" aria-pressed="${curTheme === 'dark'}">
+            <div class="room-theme-mock is-dark" aria-hidden="true">
+              <span class="rtm-bar"></span>
+              <span class="rtm-card"><i></i><b></b></span>
+            </div>
+            <span class="room-theme-card-lbl"><strong>☾ Dark</strong><small>Low-glare slate</small></span>
+          </button>
+        </div>
+      </div>
       <label class="room-setting-toggle">
         <span><strong>Show cursor pets</strong><small>Felipe, Alfred, Iggy, and Todd follow your cursor on the Question Bank. The pets stay still when your device is set to reduce motion.</small></span>
         <input type="checkbox" id="room-show-pets" role="switch" ${roomPetsAllowed()?'checked':''}>
@@ -94,9 +408,19 @@ function roomSavedTests() {
 
 function saveRoomBackup() {
   const attempts = allAttempts().filter(a => Object.hasOwn(EXAMS,a.examId) && a.state);
+  const prefs = roomGetPreferences();
   const data = JSON.stringify({
     format:roomBackupFormat, version:1, createdAt:new Date().toISOString(),
-    preferences:{allowCopy:roomCopyAllowed(),showPets:roomPetsAllowed()}, imports:Object.values(readLibrary(libraryImportKey,{})),
+    preferences:{
+      allowCopy:roomCopyAllowed(),
+      showPets:roomPetsAllowed(),
+      userName:roomUserName(),
+      dailyGoal:roomDailyGoal(),
+      focusSubjects:roomFocusSubjects(),
+      onboarded:Boolean(prefs.onboarded),
+      theme:document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'
+    },
+    imports:Object.values(readLibrary(libraryImportKey,{})),
     attempts, savedTests:roomSavedTests()
   });
   const native = window.webkit?.messageHandlers?.roomBackup;
@@ -172,12 +496,21 @@ function restoreRoomBackup(backup) {
     existing.add(key);
     return true;
   });
+  const bp = backup.preferences || {};
   const updates = new Map([
     [roomPreferencesKey, {
-      allowCopy:backup.preferences.allowCopy,
-      showPets:typeof backup.preferences.showPets==='boolean' ? backup.preferences.showPets : roomPetsAllowed()
+      ...roomGetPreferences(),
+      allowCopy:bp.allowCopy,
+      showPets:typeof bp.showPets==='boolean' ? bp.showPets : roomPetsAllowed(),
+      userName:typeof bp.userName==='string' ? bp.userName.trim().slice(0, 40) : roomUserName(),
+      dailyGoal:bp.dailyGoal !== undefined ? bp.dailyGoal : roomDailyGoal(),
+      focusSubjects:Array.isArray(bp.focusSubjects) ? bp.focusSubjects : roomFocusSubjects(),
+      onboarded:typeof bp.onboarded==='boolean' ? bp.onboarded : Boolean(roomGetPreferences().onboarded || bp.userName || added.length)
     }]
   ]);
+  if (bp.theme === 'dark' || bp.theme === 'light') {
+    updates.set('room_theme_v1', bp.theme);
+  }
   if (newImports.length) updates.set(libraryImportKey,mergedImports);
   if (added.length) updates.set(libraryHistoryKey,[...readLibrary(libraryHistoryKey,[]),...added]);
   for (const [id,snapshot] of Object.entries(backup.savedTests)) {
@@ -189,7 +522,7 @@ function restoreRoomBackup(backup) {
   try {
     for (const [key,value] of updates) {
       previous.push([key,localStorage.getItem(key)]);
-      localStorage.setItem(key,JSON.stringify(value));
+      localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
     }
   } catch {
     // Free the space used by this import before restoring the previous values.
@@ -197,6 +530,7 @@ function restoreRoomBackup(backup) {
     for (const [key,value] of previous) if (value!==null) localStorage.setItem(key,value);
     throw Error('There is not enough local storage to restore this backup.');
   }
+  if (bp.theme === 'dark' || bp.theme === 'light') window.roomSetTheme?.(bp.theme, { persist: false });
   Object.assign(EXAMS,mergedImports);
   saveHistoryRows(added);
   return `Backup restored. ${added.length} new completed attempts and ${newImports.length} new imported tests.`;
@@ -260,6 +594,9 @@ function finishRoomDeletion(ok) {
       localStorage.removeItem(getStorageKey(id));
     }
   }
+  if (selected.includes('mistakes')) {
+    localStorage.removeItem(libraryMistakesKey);
+  }
   if (selected.includes('imports')) {
     localStorage.removeItem(libraryImportKey);
     for (const id of importedIds) {
@@ -271,16 +608,83 @@ function finishRoomDeletion(ok) {
       localStorage.removeItem('bluebook_suite_active_exam');
     }
   }
+  if (selected.includes('profile')) {
+    localStorage.removeItem(roomPreferencesKey);
+    localStorage.removeItem('room_theme_v1');
+    onboardingChecked = false;
+    window.roomInitTheme?.();
+  }
+  if (!window.webkit?.messageHandlers?.roomDeleteHistory && location.protocol.startsWith('http')) {
+    fetch('/sync/clear-data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clearHistory: removeHistory,
+        clearProgress: removeProgress,
+        clearMistakes: selected.includes('mistakes'),
+        clearImports: selected.includes('imports'),
+        clearProfile: selected.includes('profile'),
+        importedIds,
+      }),
+    }).catch(() => {});
+  }
   state=emptyState();
   dialog.close();
+  if (typeof renderLibrary === 'function') renderLibrary();
   showRoomSettingsStatus('The selected data was deleted.');
 }
 
 document.addEventListener('click', event => {
-  const id = event.target.closest('button')?.id;
+  const btn = event.target.closest('button');
+  if (!btn) return;
+  const id = btn.id;
   if (id==='room-backup-save') saveRoomBackup();
   if (id==='room-backup-restore') document.getElementById('room-backup-file').click();
   if (id==='room-delete-open') deleteRoomData();
+  if (id==='room-reopen-onboarding') window.openRoomOnboarding?.({ manual: true });
+  if (id==='room-save-name') {
+    const inp = document.getElementById('room-user-name');
+    const name = String(inp?.value || '').trim().slice(0, 40);
+    roomUpdatePreferences({ userName: name, onboarded: true });
+    window.showRoomToast?.(name ? `Saved name: ${name}` : 'Display name cleared');
+    showRoomSettingsStatus(name ? `Display name saved as “${name}”.` : 'Display name cleared.');
+    return;
+  }
+  if (btn.dataset.themePick) {
+    const theme = btn.dataset.themePick === 'dark' ? 'dark' : 'light';
+    window.roomSetTheme?.(theme, { persist: true });
+    showRoomSettingsStatus(`Switched to ${theme === 'dark' ? 'Dark' : 'Light'} mode.`);
+    return;
+  }
+  if (btn.dataset.settingGoal !== undefined) {
+    const goal = Number(btn.dataset.settingGoal) || 0;
+    roomUpdatePreferences({ dailyGoal: goal, onboarded: true });
+    document.querySelectorAll('[data-setting-goal]').forEach(b => {
+      const on = Number(b.dataset.settingGoal) === goal;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+    showRoomSettingsStatus(goal ? `Daily goal set to ${goal} questions.` : 'Daily study goal turned off.');
+    return;
+  }
+  if (btn.dataset.settingSubj) {
+    const key = btn.dataset.settingSubj;
+    const set = new Set(roomFocusSubjects());
+    if (set.has(key)) set.delete(key);
+    else set.add(key);
+    const list = [...set];
+    roomUpdatePreferences({ focusSubjects: list, onboarded: true });
+    btn.classList.toggle('is-active', set.has(key));
+    btn.setAttribute('aria-pressed', String(set.has(key)));
+    showRoomSettingsStatus(list.length ? `Pinned ${list.length} focus subject${list.length === 1 ? '' : 's'}.` : 'Cleared pinned focus subjects.');
+  }
+});
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && event.target?.id === 'room-user-name') {
+    event.preventDefault();
+    document.getElementById('room-save-name')?.click();
+  }
 });
 
 document.addEventListener('change', async event => {

@@ -24,7 +24,9 @@ final class APExamSchemeHandler: NSObject, WKURLSchemeHandler {
            FileManager.default.fileExists(atPath: rootCandidate.appendingPathComponent("计算机A").path) {
             self.vaultRootURL = rootCandidate
         } else {
-            self.vaultRootURL = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/AP 内容学习")
+            let fallbackVault = ProcessInfo.processInfo.environment["AP_EXAM_VAULT"].map { URL(fileURLWithPath: $0) }
+                ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents/AP-Exam-Vault")
+            self.vaultRootURL = fallbackVault
         }
         super.init()
     }
@@ -222,6 +224,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         config.userContentController.add(self, name: "roomBackup")
         config.userContentController.add(self, name: "roomDeleteHistory")
         config.userContentController.add(self, name: "roomOpenExternalPdf")
+        config.userContentController.add(self, name: "roomStartWindowDrag")
+        config.userContentController.add(self, name: "roomToggleZoom")
+        config.userContentController.add(self, name: "roomSetTheme")
+        let macFlagScript = WKUserScript(source: "document.documentElement.classList.add('is-mac-app');", injectionTime: .atDocumentStart, forMainFrameOnly: true)
+        config.userContentController.addUserScript(macFlagScript)
         config.userContentController.addScriptMessageHandler(self, contentWorld: .page, name: "roomCopyQuestion")
         config.userContentController.addScriptMessageHandler(self, contentWorld: .page, name: "roomLocalFetch")
         config.userContentController.addScriptMessageHandler(self, contentWorld: .page, name: "roomRunJava")
@@ -233,9 +240,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
         web.uiDelegate = self
         web.navigationDelegate = self
         window = ExamWindow(contentRect: NSRect(x: 0, y: 0, width: 1320, height: 860),
-                          styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                          styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
         window.title = "AP Exam Room"
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = false
+        window.appearance = NSAppearance(named: .aqua)
+        window.backgroundColor = NSColor(red: 248/255, green: 250/255, blue: 252/255, alpha: 1)
         window.minSize = NSSize(width: 680, height: 520)
         window.contentView = web
         window.center()
@@ -280,6 +292,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.frameInfo.isMainFrame else { return }
+        if message.name == "roomStartWindowDrag" {
+            if !focused, let event = NSApp.currentEvent {
+                window.performDrag(with: event)
+            }
+            return
+        }
+        if message.name == "roomToggleZoom" {
+            if !focused {
+                window.zoom(nil)
+            }
+            return
+        }
+        if message.name == "roomSetTheme", let theme = message.body as? String {
+            let dark = (theme == "dark")
+            window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+            window.backgroundColor = dark
+                ? NSColor(red: 11/255, green: 17/255, blue: 32/255, alpha: 1)
+                : NSColor(red: 248/255, green: 250/255, blue: 252/255, alpha: 1)
+            return
+        }
         if message.name == "roomOpenExternalPdf", let rel = message.body as? String {
             let bundleParent = Bundle.main.bundleURL.deletingLastPathComponent()
             let fallbackVault = ProcessInfo.processInfo.environment["AP_EXAM_VAULT"].map { URL(fileURLWithPath: $0) }
@@ -543,11 +575,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNaviga
             fitFocusWindow(to: screen)
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
+            web.evaluateJavaScript("document.documentElement.classList.add('is-focus-mode')")
         } else {
             NSApp.presentationOptions = previousOptions
             window.styleMask = previousStyle
+            window.titleVisibility = .hidden
+            window.titlebarAppearsTransparent = true
             window.setFrame(previousFrame, display: true)
             window.makeKeyAndOrderFront(nil)
+            web.evaluateJavaScript("document.documentElement.classList.remove('is-focus-mode')")
         }
     }
 

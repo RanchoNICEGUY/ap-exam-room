@@ -65,8 +65,36 @@ function extractYear(title) {
   return best;
 }
 
-function sortExams(list) {
+function buildExamProgressIndex(list) {
+  const historyIds = new Set();
+  const latestScoreByExam = new Map();
+  try {
+    if (typeof allAttempts === 'function') {
+      for (const a of allAttempts()) {
+        if (!a || !a.examId) continue;
+        historyIds.add(a.examId);
+        if (!latestScoreByExam.has(a.examId) && a.graded > 0 && a.answered > 0) {
+          latestScoreByExam.set(a.examId, `${a.correct}/${a.graded} · ${Math.round((a.correct / a.graded) * 100)}%`);
+        }
+      }
+    }
+  } catch (_) {}
+  const map = new Map();
+  for (const ex of list) {
+    const id = ex.id;
+    const raw = readLibrary(getStorageKey(id), {});
+    const ongoing = ['mcq_exam', 'mcq_check', 'frq_exam', 'frq_check', 'break'].includes(raw.phase);
+    const completed = !ongoing && (['complete', 'results'].includes(raw.phase) || historyIds.has(id));
+    const bucket = ongoing ? 0 : (completed ? 2 : 1);
+    const lastActive = Number(raw.mcq?.lastTick || raw.frq?.lastTick || raw.completionShownAt || 0);
+    map.set(id, { bucket, ongoing, completed, lastActive, scoreText: latestScoreByExam.get(id) || '' });
+  }
+  return map;
+}
+
+function sortExams(list, progressMap) {
   const arr = [...list];
+  const prog = progressMap || (librarySort === 'recommended' ? buildExamProgressIndex(arr) : null);
   arr.sort((a, b) => {
     if (librarySort === 'title') {
       return naturalCompare(a.title, b.title);
@@ -83,7 +111,13 @@ function sortExams(list) {
       if (md !== 0) return md;
       return naturalCompare(a.title, b.title);
     }
-    // 'recommended' default: native first -> category priority -> natural title
+    // 'recommended' default: In Progress (0) -> Not Started (1) -> Completed (2), then native -> category -> title
+    const pa = prog.get(a.id);
+    const pb = prog.get(b.id);
+    if (pa && pb) {
+      if (pa.bucket !== pb.bucket) return pa.bucket - pb.bucket;
+      if (pa.bucket === 0 && pb.lastActive !== pa.lastActive) return pb.lastActive - pa.lastActive;
+    }
     const md = (a.mode === 'native' ? 0 : 1) - (b.mode === 'native' ? 0 : 1);
     if (md !== 0) return md;
     const ca = CATEGORY_PRIORITY[a.category] ?? 9;
@@ -437,47 +471,77 @@ function examMetaLine(ex) {
   return parts.filter(Boolean).join(' · ');
 }
 
-function renderExamItemMarkup(ex, displayMode) {
-  const raw = readLibrary(getStorageKey(ex.id), {});
-  const ongoing = ['mcq_exam', 'mcq_check', 'frq_exam', 'frq_check', 'break'].includes(raw.phase);
-  const completed = ['complete', 'results'].includes(raw.phase);
-  const btnText = ongoing ? 'Resume' : 'Start / Setup';
+function renderExamItemMarkup(ex, displayMode, progressMap) {
+  let info = progressMap?.get(ex.id);
+  if (!info) {
+    const raw = readLibrary(getStorageKey(ex.id), {});
+    const ongoing = ['mcq_exam', 'mcq_check', 'frq_exam', 'frq_check', 'break'].includes(raw.phase);
+    const atts = typeof allAttempts === 'function' ? allAttempts().filter(a => a.examId === ex.id) : [];
+    const completed = !ongoing && (['complete', 'results'].includes(raw.phase) || atts.length > 0);
+    const scored = atts.find(a => a.graded > 0 && a.answered > 0);
+    const scoreText = scored ? `${scored.correct}/${scored.graded} · ${Math.round((scored.correct / scored.graded) * 100)}%` : '';
+    info = { ongoing, completed, scoreText };
+  }
+  const { ongoing, completed, scoreText } = info;
+  const btnText = ongoing ? 'Resume' : (completed ? 'Retake' : 'Start / Setup');
+  const btnCls = ongoing ? 'btn-primary' : (completed ? 'btn-done-retake' : 'room-yellow');
+  const stateCls = ongoing ? 'is-ongoing' : (completed ? 'is-completed' : '');
   const catIcon = roomIcon(ex.category || 'workbook');
+  const checkOverlay = completed ? '<span class="room-tile-check" aria-hidden="true">✓</span>' : '';
+  const doneBadge = completed
+    ? `<span class="room-badge is-done-badge">${scoreText ? '✓ ' + escapeHtml(scoreText) : '✓ Completed'}</span>`
+    : '';
 
   if (displayMode === 'grid') {
-    return `<article class="room-card">
+    return `<article class="room-card ${stateCls}" data-exam-id="${escapeHtml(ex.id)}">
       <div class="room-card-top">
-        <span class="room-card-icon">${catIcon}</span>
-        <div class="room-card-badges">${examCardBadges(ex)}</div>
+        <span class="room-card-icon">${catIcon}${checkOverlay}</span>
+        <div class="room-card-badges">${examCardBadges(ex)}${doneBadge}</div>
       </div>
       <h3 class="room-card-title">${escapeHtml(ex.title)}</h3>
       <p class="room-card-meta">${escapeHtml(ex.subject)} · ${escapeHtml(examMetaLine(ex))}</p>
       <div class="room-card-actions">
-        ${completed ? `<button class="btn btn-secondary" data-action="room-open" data-mode="review" data-exam-id="${escapeHtml(ex.id)}">Results</button>` : ''}
-        <button class="btn ${ongoing ? 'btn-primary' : 'room-yellow'}" data-action="room-open" data-exam-id="${escapeHtml(ex.id)}">${btnText}</button>
+        <button class="btn ${btnCls}" data-action="room-open" data-exam-id="${escapeHtml(ex.id)}">${btnText}</button>
       </div>
     </article>`;
   }
 
-  return `<li class="room-row">
+  return `<li class="room-row ${stateCls}" data-exam-id="${escapeHtml(ex.id)}">
     <div class="room-item">
-      <span class="room-tile-icon">${catIcon}</span>
+      <span class="room-tile-icon">${catIcon}${checkOverlay}</span>
       <div>
         <div class="room-row-title-line">
           <strong>${escapeHtml(ex.title)}</strong>
-          <span class="room-inline-badges">${examCardBadges(ex)}</span>
+          <span class="room-inline-badges">${examCardBadges(ex)}${doneBadge}</span>
         </div>
         <div class="room-meta">${escapeHtml(ex.subject)} · ${escapeHtml(examMetaLine(ex))}</div>
       </div>
     </div>
     <div class="room-row-actions">
-      ${completed ? `<button class="btn btn-secondary" data-action="room-open" data-mode="review" data-exam-id="${escapeHtml(ex.id)}">View Results</button>` : ''}
-      <button class="btn ${ongoing ? 'btn-primary' : 'room-yellow'}" data-action="room-open" data-exam-id="${escapeHtml(ex.id)}">${btnText}</button>
+      <button class="btn ${btnCls}" data-action="room-open" data-exam-id="${escapeHtml(ex.id)}">${btnText}</button>
     </div>
   </li>`;
 }
 
-function renderFolderHierarchy(rows, subjectSelected) {
+function renderExamListMarkup(pageItems, progressMap) {
+  let dividerInserted = false;
+  let seenActive = false;
+  const rowsHtml = [];
+  for (const ex of pageItems) {
+    const info = progressMap?.get(ex.id);
+    const isDone = Boolean(info?.completed);
+    if (!isDone) seenActive = true;
+    if (librarySort === 'recommended' && !dividerInserted && isDone && seenActive) {
+      dividerInserted = true;
+      rowsHtml.push('<li class="room-list-divider" role="presentation"><span>✓ Completed</span></li>');
+    }
+    rowsHtml.push(renderExamItemMarkup(ex, 'list', progressMap));
+  }
+  return `<ul class="room-list">${rowsHtml.join('')}</ul>`;
+}
+
+function renderFolderHierarchy(rows, subjectSelected, progressMap) {
+  const prog = progressMap || buildExamProgressIndex(rows);
   // Build folder children at current libraryFolderPath depth
   const depth = subjectSelected ? libraryFolderPath.length : 0;
   const prefixMatches = rows.filter((ex) => {
@@ -516,10 +580,13 @@ function renderFolderHierarchy(rows, subjectSelected) {
       const subName = fp[depth];
       let meta = folders.get(subName);
       if (!meta) {
-        meta = { count: 0, hasNative: false, bestCat: 9, bestYear: 0 };
+        meta = { count: 0, ongoingCount: 0, completedCount: 0, hasNative: false, bestCat: 9, bestYear: 0 };
         folders.set(subName, meta);
       }
       meta.count++;
+      const st = prog.get(ex.id);
+      if (st?.ongoing) meta.ongoingCount++;
+      else if (st?.completed) meta.completedCount++;
       if (ex.mode === 'native') meta.hasNative = true;
       const cp = CATEGORY_PRIORITY[ex.category] ?? 9;
       if (cp < meta.bestCat) meta.bestCat = cp;
@@ -530,6 +597,7 @@ function renderFolderHierarchy(rows, subjectSelected) {
     }
   }
 
+  const folderBucket = (m) => (m.ongoingCount > 0 ? 0 : (m.completedCount < m.count ? 1 : 2));
   const sortedFolders = [...folders.entries()].sort(([nameA, ma], [nameB, mb]) => {
     if (librarySort === 'title') return naturalCompare(nameA, nameB);
     if (librarySort === 'year') {
@@ -537,6 +605,10 @@ function renderFolderHierarchy(rows, subjectSelected) {
       const yb = Math.max(extractYear(nameB), mb.bestYear);
       if (yb !== ya) return yb - ya;
       return naturalCompare(nameA, nameB);
+    }
+    if (librarySort === 'recommended') {
+      const fd = folderBucket(ma) - folderBucket(mb);
+      if (fd !== 0) return fd;
     }
     const nd = (ma.hasNative ? 0 : 1) - (mb.hasNative ? 0 : 1);
     if (nd !== 0) return nd;
@@ -550,19 +622,26 @@ function renderFolderHierarchy(rows, subjectSelected) {
     ...libraryFolderPath.map((f, i) => `<span class="room-crumb-sep">/</span><button type="button" class="room-crumb" data-action="crumb-depth" data-depth="${i + 1}">${escapeHtml(f)}</button>`),
   ].join('');
 
+  const folderMetaText = (m) => {
+    if (m.ongoingCount > 0) return `${m.ongoingCount} in progress · ${m.count} items`;
+    if (m.completedCount === m.count && m.count > 0) return `${m.count} completed`;
+    if (m.completedCount > 0) return `${m.completedCount}/${m.count} done · ${m.count} items`;
+    return `${m.count} item${m.count === 1 ? '' : 's'}`;
+  };
+
   const folderCards = sortedFolders.map(([fname, meta]) => `
     <button type="button" class="room-folder-card" data-action="open-folder" data-folder="${escapeHtml(fname)}">
       <img class="room-folder-ico" src="Assets/icons/folder.svg" alt="">
       <div class="room-folder-info">
         <strong>${escapeHtml(fname)}</strong>
-        <span>${meta.count} item${meta.count === 1 ? '' : 's'}</span>
+        <span>${folderMetaText(meta)}</span>
       </div>
     </button>`).join('');
 
   let itemsHtml = '';
   if (directItems.length) {
     const pg = paginateList(directItems);
-    itemsHtml = `<ul class="room-list">${pg.pageItems.map(ex => renderExamItemMarkup(ex, 'list')).join('')}</ul>${renderPaginationBar(pg)}`;
+    itemsHtml = `${renderExamListMarkup(pg.pageItems, prog)}${renderPaginationBar(pg)}`;
   }
 
   return `<nav class="room-breadcrumbs" aria-label="Folder path">${crumbs}</nav>
@@ -595,7 +674,7 @@ function renderMistakesMarkup() {
       ${subjs.map(([k, name]) => `<button type="button" class="room-filter ${mistakeSubjectFilter === k ? 'active' : ''}" data-action="filter-mistake-subj" data-filter="${escapeHtml(k)}">${escapeHtml(name)}</button>`).join('')}
     </div>
     ${filtered.length ? `<ul class="room-list">${filtered.map(m => `
-      <li class="room-row">
+      <li class="room-row room-mistake-row" data-mistake-exam="${escapeHtml(m.examId)}" data-mistake-orig="${m.origId}">
         <div class="room-item">
           <span class="room-tile-icon">${roomIcon(m.subjectKey)}</span>
           <div>
@@ -605,7 +684,6 @@ function renderMistakesMarkup() {
           </div>
         </div>
         <div class="room-row-actions">
-          <button type="button" class="btn btn-secondary" data-action="remove-mistake" data-exam-id="${escapeHtml(m.examId)}" data-orig="${m.origId}" title="Mark as mastered and remove from Mistake Bank">✓ Mastered</button>
           <button type="button" class="btn btn-secondary" data-action="open-mistake-question" data-exam-id="${escapeHtml(m.examId)}" data-orig="${m.origId}">Open Q${m.origId}</button>
         </div>
       </li>`).join('')}</ul>` : '<div class="room-empty-box"><p>No missed questions recorded yet! Wrong answers from any completed test will automatically appear here.</p></div>'}
@@ -615,7 +693,8 @@ function renderMistakesMarkup() {
 function renderLibrary() {
   const all = Object.values(EXAMS);
   const subjects = getSubjectsList();
-  const mainSubjects = subjects.filter(s => !s.isExtended);
+  const focusSet = new Set(typeof roomFocusSubjects === 'function' ? roomFocusSubjects() : []);
+  const mainSubjects = subjects.filter(s => !s.isExtended).sort((a, b) => (focusSet.has(b.key) ? 1 : 0) - (focusSet.has(a.key) ? 1 : 0));
   const extSubjects = subjects.filter(s => s.isExtended);
   const attempts = allAttempts();
   const mistakesList = loadGlobalMistakes();
@@ -626,17 +705,21 @@ function renderLibrary() {
 
   const normNum = (s) => String(s || '').toLowerCase().replace(/\b0+(\d+)\b/g, '$1');
   const qTokens = normNum(librarySearch).trim().split(/\s+/).filter(Boolean);
-  const rows = sortExams(all.filter((ex) => {
+  const filteredRows = all.filter((ex) => {
     if (currentSubjectFilter !== 'all' && ex.subjectKey !== currentSubjectFilter) return false;
     if (currentCategoryFilter !== 'all' && ex.category !== currentCategoryFilter) return false;
     if (!qTokens.length) return true;
     const hay = normNum(`${ex.title} ${ex.subject} ${ex.subjectZh || ''} ${(ex.folderPath || []).join(' ')}`);
     return qTokens.every(t => hay.includes(t));
-  }));
+  });
+  const progressMap = buildExamProgressIndex(filteredRows);
+  const rows = sortExams(filteredRows, progressMap);
 
   let mainContent = '';
   if (libraryView === 'settings') {
     mainContent = roomSettingsMarkup();
+  } else if (libraryView === 'stats') {
+    mainContent = typeof renderStatsMarkup === 'function' ? renderStatsMarkup() : '';
   } else if (libraryView === 'history') {
     mainContent = roomHistoryMarkup(attempts);
   } else if (libraryView === 'mistakes') {
@@ -673,15 +756,15 @@ function renderLibrary() {
     let resultsArea = '';
     const useFolderTree = libraryDisplayMode === 'folder' && !qTokens.length && currentCategoryFilter === 'all';
     if (useFolderTree) {
-      resultsArea = renderFolderHierarchy(rows, currentSubjectFilter !== 'all');
+      resultsArea = renderFolderHierarchy(rows, currentSubjectFilter !== 'all', progressMap);
     } else if (!rows.length) {
       resultsArea = '<div class="room-empty-box"><p>No tests match your filters. Try clearing your search or choosing another category.</p></div>';
     } else if (libraryDisplayMode === 'grid') {
       const pg = paginateList(rows);
-      resultsArea = `<div class="room-cards-grid">${pg.pageItems.map(ex => renderExamItemMarkup(ex, 'grid')).join('')}</div>${renderPaginationBar(pg)}`;
+      resultsArea = `<div class="room-cards-grid">${pg.pageItems.map(ex => renderExamItemMarkup(ex, 'grid', progressMap)).join('')}</div>${renderPaginationBar(pg)}`;
     } else {
       const pg = paginateList(rows);
-      resultsArea = `<ul class="room-list">${pg.pageItems.map(ex => renderExamItemMarkup(ex, 'list')).join('')}</ul>${renderPaginationBar(pg)}`;
+      resultsArea = `${renderExamListMarkup(pg.pageItems, progressMap)}${renderPaginationBar(pg)}`;
     }
 
     mainContent = `
@@ -700,7 +783,7 @@ function renderLibrary() {
             ${mainSubjects.map(s => `
               <button type="button" class="room-nav-item ${currentSubjectFilter === s.key ? 'is-active' : ''}" data-action="filter-subject" data-filter="${escapeHtml(s.key)}">
                 <img src="Assets/icons/${s.icon || 'folder.svg'}" alt="" width="22" height="22">
-                <span class="room-nav-lbl">${escapeHtml(s.zh || s.name)}</span>
+                <span class="room-nav-lbl">${escapeHtml(s.zh || s.name)}${focusSet.has(s.key) ? ' <span class="room-focus-star" title="My AP Subject">★</span>' : ''}</span>
                 <span class="room-nav-cnt">${all.filter(e => e.subjectKey === s.key).length}</span>
               </button>`).join('')}
           </div>
@@ -743,11 +826,11 @@ function renderLibrary() {
         <strong class="room-brand"><span class="room-mark">${roomLogo()}</span> AP Exam Room</strong>
         <nav>
           ${filter('room-view', 'bank', 'Question Bank', libraryView === 'bank')}
+          ${filter('room-view', 'stats', 'Stats', libraryView === 'stats')}
           ${filter('room-view', 'mistakes', `Mistakes <span class="room-pill-badge">${mistakesList.length}</span>`, libraryView === 'mistakes')}
           ${filter('room-view', 'history', 'Test History', libraryView === 'history')}
           ${filter('room-view', 'settings', 'Settings', libraryView === 'settings')}
           <button class="btn btn-secondary" type="button" data-action="room-toggle-theme" aria-pressed="${isDark}">${isDark ? '☀ Light' : '☾ Dark'}</button>
-          <button class="btn btn-secondary" type="button" data-action="room-import">${roomIcon('homework')} Import JSON</button>
         </nav>
       </header>
       <main class="room-content">${mainContent}</main>
@@ -977,13 +1060,6 @@ document.addEventListener('click', async (event) => {
 
   if (act === 'room-toggle-theme') {
     window.roomToggleTheme?.();
-    const isNowDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    document.querySelectorAll('[data-action="room-toggle-theme"]').forEach(btn => {
-      const span = btn.querySelector('span');
-      const lbl = isNowDark ? '☀ Light' : '☾ Dark';
-      if (span) span.textContent = lbl;
-      else btn.textContent = lbl;
-    });
     closeMoreDropdown();
     return;
   }
@@ -1089,17 +1165,32 @@ document.addEventListener('click', async (event) => {
     return;
   }
   if (act === 'clear-mistakes') {
-    if (window.confirm('Clear all saved items from the Mistake Bank?')) {
-      saveGlobalMistakes([]);
-      render();
-    }
+    const prev = loadGlobalMistakes();
+    if (!prev.length) return;
+    saveGlobalMistakes([]);
+    render();
+    window.roomPushUndo?.({
+      label: `Cleared ${prev.length} mistake${prev.length === 1 ? '' : 's'}`,
+      undo() {
+        saveGlobalMistakes(prev);
+        render();
+      },
+    });
     return;
   }
   if (act === 'remove-mistake') {
     const eid = b.dataset.examId;
     const orig = Number(b.dataset.orig);
-    saveGlobalMistakes(loadGlobalMistakes().filter(m => !(m.examId === eid && Number(m.origId) === orig)));
+    const prev = loadGlobalMistakes();
+    saveGlobalMistakes(prev.filter(m => !(m.examId === eid && Number(m.origId) === orig)));
     render();
+    window.roomPushUndo?.({
+      label: `Marked Q${orig} as mastered`,
+      undo() {
+        saveGlobalMistakes(prev);
+        render();
+      },
+    });
     return;
   }
   if (act === 'open-mistake-question') {
@@ -1731,16 +1822,28 @@ function attemptFrom(ex, snapshot) {
     const g = typeof gradePdfAttempt === 'function' ? gradePdfAttempt(ex, snapshot.pdf || {}) : { totalKeyed: 0, correct: 0 };
     const pAns = Object.keys(snapshot.pdf?.answers || {}).length + Object.values(snapshot.pdf?.responses || {}).filter(v => String(v).trim()).length;
     const tot = snapshot.pdf?.questionCount || ex.defaultQuestionCount || 25;
-    return { examId: ex.id, time: snapshot.completionShownAt, correct: g.correct, graded: g.totalKeyed, answered: pAns, total: tot, state: snapshot };
+    const elapsedSec = typeof estimateAttemptElapsedSec === 'function'
+      ? estimateAttemptElapsedSec({ answered: pAns, state: snapshot }, ex)
+      : null;
+    return { examId: ex.id, time: snapshot.completionShownAt, correct: g.correct, graded: g.totalKeyed, answered: pAns, total: tot, elapsedSec, state: snapshot };
   }
+  const mcqAnswers = snapshot.mcq?.answers || {};
+  const mcqOrder = snapshot.mcq?.order || [];
+  const frqResponses = snapshot.frq?.responses || {};
+  const frqOrder = snapshot.frq?.order || [];
   const graded = scoringIds(ex, snapshot);
+  const answered = Object.keys(mcqAnswers).length + Object.values(frqResponses).filter(s => s.trim()).length;
+  const elapsedSec = typeof estimateAttemptElapsedSec === 'function'
+    ? estimateAttemptElapsedSec({ answered, state: snapshot }, ex)
+    : null;
   return {
     examId: ex.id,
     time: snapshot.completionShownAt,
-    correct: graded.filter(id => snapshot.mcq.answers[id] === answerKeyOf(ex, id)).length,
+    correct: graded.filter(id => mcqAnswers[id] === answerKeyOf(ex, id)).length,
     graded: graded.length,
-    answered: Object.keys(snapshot.mcq.answers).length + Object.values(snapshot.frq.responses || {}).filter(s => s.trim()).length,
-    total: snapshot.mcq.order.length + snapshot.frq.order.length,
+    answered,
+    total: mcqOrder.length + frqOrder.length,
+    elapsedSec,
     state: snapshot,
   };
 }
@@ -1748,12 +1851,14 @@ function mistakes(a) {
   const ex = EXAMS[a.examId];
   if (!ex || ex._stub) return [];
   if (ex.mode === 'pdf') return (typeof gradePdfAttempt === 'function' ? gradePdfAttempt(ex, a.state?.pdf || {}).missed : []);
-  return scoringIds(ex, a.state).filter(id => a.state.mcq.answers[id] && a.state.mcq.answers[id] !== answerKeyOf(ex, id))
+  const mcqAnswers = a.state?.mcq?.answers || {};
+  return scoringIds(ex, a.state).filter(id => mcqAnswers[id] && mcqAnswers[id] !== answerKeyOf(ex, id))
     .map(id => ex.questions.find(q => q.origId === id)).filter(Boolean);
 }
 function exportMistakes(a) {
   const ex = EXAMS[a.examId];
-  const questions = mistakes(a).map(q => ({ ...q, correctAnswer: answerKeyOf(ex, q.origId), previousAnswer: a.state.mcq.answers[q.origId], explanation: ex.explanations?.[q.origId] || '' }));
+  const mcqAnswers = a.state?.mcq?.answers || {};
+  const questions = mistakes(a).map(q => ({ ...q, correctAnswer: answerKeyOf(ex, q.origId), previousAnswer: mcqAnswers[q.origId], explanation: ex.explanations?.[q.origId] || '' }));
   const data = JSON.stringify({ schemaVersion: 1, id: a.examId + '_missed_' + a.time, title: ex.title + ' — Missed Questions', subject: ex.subject, subjectKey: ex.subjectKey, category: 'homework', questions }, null, 2);
   const native = window.webkit?.messageHandlers?.roomExport;
   if (native) { native.postMessage(data); return; }
@@ -1769,26 +1874,44 @@ function exportMistakes(a) {
 function roomGreeting(attempts) {
   const hour = new Date().getHours();
   const greeting = hour < 5 ? 'Hello' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-  const graded = attempts.reduce((n, a) => n + (a.graded || 0), 0);
-  const correct = attempts.reduce((n, a) => n + (a.correct || 0), 0);
-  const latest = attempts.find(a => a.graded);
-  const totalBank = Object.keys(EXAMS).length;
-  return `<section class="room-welcome"><div class="room-welcome-intro"><div class="room-welcome-copy"><h1>${greeting}, Ready to Practice.</h1>
+  const name = typeof roomUserName === 'function' ? roomUserName() : '';
+  const goal = typeof roomDailyGoal === 'function' ? roomDailyGoal() : 20;
+  const st = typeof window.computeRoomStats === 'function' ? window.computeRoomStats() : null;
+  const graded = st ? st.totalGraded : attempts.reduce((n, a) => n + (a.graded || 0), 0);
+  const correct = st ? st.totalCorrect : attempts.reduce((n, a) => n + (a.correct || 0), 0);
+  const accVal = st
+    ? (st.overallAccuracy !== null ? `${st.overallAccuracy}%` : '—')
+    : (graded ? `${Math.round(correct / graded * 100)}%` : '—');
+  const doneSets = st ? st.completedTotal : new Set(attempts.map(a => a.examId)).size;
+  const doneSub = st ? `${st.completedNative}/${st.totalNative} interactive` : `${attempts.length} attempts`;
+  const todayQs = st ? st.todayQuestions : 0;
+  const todaySets = st ? st.todaySets : 0;
+  const todayVal = `${todayQs} Qs`;
+  const setsLabel = `${todaySets} set${todaySets === 1 ? '' : 's'}`;
+  const todaySub = goal > 0
+    ? (todayQs >= goal ? `Goal met ✓ (${todayQs}/${goal}) · ${setsLabel}` : `${todayQs}/${goal} daily goal · ${setsLabel}`)
+    : `${setsLabel} today`;
+  const streakVal = st ? `${st.currentStreak} day${st.currentStreak === 1 ? '' : 's'}` : '0 days';
+  const streakSub = (st && st.longestStreak > 0) ? `Best ${st.longestStreak}d · View Stats →` : 'Start your streak →';
+
+  return `<section class="room-welcome"><div class="room-welcome-intro"><div class="room-welcome-copy"><h1>${name ? `${greeting}, ${escapeHtml(name)}.` : `${greeting}.`}</h1>
     <p>Choose an AP subject from the sidebar, browse folders or icon cards, and practice with Bluebook Desmos, Reference Sheets, and Auto-Graded Mistake Sync.</p></div>
     ${roomPetsAllowed() ? '<div class="room-dots" aria-hidden="true"></div>' : ''}</div>
-    <dl class="room-metrics"><div><dt>Library Tests</dt><dd>${totalBank}</dd></div><div><dt>Completed Attempts</dt><dd>${attempts.length}</dd></div>
-    <div><dt>Latest Score</dt><dd>${latest ? `${latest.correct}/${latest.graded}` : '—'}</dd></div>
-    <div><dt>Overall Accuracy</dt><dd>${graded ? Math.round(correct / graded * 100) + '%' : '—'}</dd></div></dl></section>`;
+    <div class="room-metrics">
+      <button type="button" class="room-metric-btn" data-action="room-view" data-filter="stats"><span class="room-metric-dt">Completed Tests</span><strong class="room-metric-dd">${doneSets}</strong><span class="room-metric-sub">${doneSub}</span></button>
+      <button type="button" class="room-metric-btn" data-action="room-view" data-filter="stats"><span class="room-metric-dt">Today's Study</span><strong class="room-metric-dd">${todayVal}</strong><span class="room-metric-sub">${todaySub}</span></button>
+      <button type="button" class="room-metric-btn" data-action="room-view" data-filter="stats"><span class="room-metric-dt">Overall Accuracy</span><strong class="room-metric-dd">${accVal}</strong><span class="room-metric-sub">${graded ? `${correct}/${graded} graded` : 'No graded Qs yet'}</span></button>
+      <button type="button" class="room-metric-btn" data-action="room-view" data-filter="stats"><span class="room-metric-dt">Study Streak</span><strong class="room-metric-dd">${streakVal}</strong><span class="room-metric-sub">${streakSub}</span></button>
+    </div></section>`;
 }
 function roomHistoryMarkup(attempts) {
   return `<h1>Test History</h1><p class="room-history-intro">Review your scores and responses from each completed attempt.</p>
     ${historyStorageError ? '<p role="alert">The history database is unavailable. Recent results may still be available in this app.</p>' : ''}
     ${attempts.length ? `<ul class="room-list room-history-list">${attempts.map((a, i) => {
     const ex = EXAMS[a.examId], wrong = mistakes(a);
-    return `<li class="room-history-item"><div class="room-row"><div class="room-item"><span class="room-tile-icon">${roomIcon(ex?.category)}</span>
+    return `<li class="room-history-item" data-exam-id="${escapeHtml(a.examId)}" data-history-time="${Number(a.time) || 0}"><div class="room-row"><div class="room-item"><span class="room-tile-icon">${roomIcon(ex?.category)}</span>
     <div><strong>${escapeHtml(ex?.title || a.examId)}</strong><div class="room-meta">${escapeHtml(new Date(a.time).toLocaleString('en-US'))} · ${a.answered}/${a.total} answered · ${a.graded ? `Score ${a.correct}/${a.graded} · ${Math.round(a.correct / a.graded * 100)}% accuracy` : 'No auto-graded score'}</div></div></div>
-    <div class="room-row-actions"><button class="btn btn-secondary" data-action="room-history-open" data-index="${i}">View Results</button>
-    <button class="btn room-yellow" data-action="room-retake" data-exam-id="${escapeHtml(a.examId)}">Retake</button></div></div>
+    <div class="room-row-actions"><button class="btn btn-secondary" data-action="room-history-open" data-index="${i}">View Results</button></div></div>
     <details class="room-mistakes"><summary><span>Missed Questions</span><span class="room-mistake-count" aria-label="${wrong.length} missed">${wrong.length}</span></summary>
     ${wrong.length ? `<table class="room-mistake-table" aria-label="Missed questions and answers">
       <thead><tr><th scope="col">Question</th><th scope="col">Your answer</th><th scope="col">Correct answer</th></tr></thead>
@@ -1796,8 +1919,7 @@ function roomHistoryMarkup(attempts) {
         <td><span class="room-mistake-choice is-incorrect">${escapeHtml(q.yourAnswer || a.state.mcq?.answers?.[q.origId] || '—')}</span></td>
         <td><span class="room-mistake-choice is-correct">${escapeHtml(q.correctAnswer || answerKeyOf(ex, q.origId))}</span></td>
       </tr>`).join('')}</tbody>
-    </table>
-    <div class="room-mistakes-footer"><button class="btn btn-secondary" type="button" data-action="room-export" data-index="${i}">${roomIcon('homework')} Export Missed Questions</button></div>` :
+    </table>` :
     '<p class="room-mistakes-empty">Open attempt or no incorrect answers recorded.</p>'}</details></li>`;
   }).join('')}</ul>` : '<p class="room-meta">Your completed tests will appear here after you submit them.</p>'}`;
 }
@@ -1829,7 +1951,9 @@ function roomExplanation(ex, question) {
   const existing = ex.explanations?.[question.origId] || '';
   const topic = question.topic ? `<p class="room-topic"><strong>Topic</strong> ${escapeHtml(question.topic)}</p>` : '';
   const vPrefix = window.ROOM_IS_APP_WEBKIT ? '../../../' : (location.protocol.startsWith('http') ? '/' : '../');
-  const vSrc = question.videoUrl ? (question.videoUrl.startsWith('大陆统计_2026_视频/') ? vPrefix + question.videoUrl : question.videoUrl) : '';
+  const rawVideo = question.videoUrl || '';
+  const isAbsVideo = /^(?:https?:|data:|blob:|\/)/i.test(rawVideo);
+  const vSrc = rawVideo ? (isAbsVideo ? rawVideo : vPrefix + rawVideo.replace(/^\/+/, '')) : '';
   const video = vSrc ? `<details class="room-advanced room-video-details"><summary>Video walkthrough</summary><video controls preload="none" data-src="${escapeHtml(vSrc)}"></video></details>` : '';
   const fallback = existing && !existing.includes('video-walkthrough-box') ? existing : '';
   const pdfBtn = question.sourcePdfRel ? `<div class="room-meta" style="margin-top:8px;"><button type="button" class="btn btn-secondary" onclick="roomOpenPdfExternal('${escapeHtml(question.sourcePdfRel)}')">Open Source PDF (p.${question.sourcePage || 1}) ↗</button></div>` : '';
@@ -1952,7 +2076,10 @@ document.addEventListener('click', event => {
   const META_KEY = 'ap-room-sync-meta-v1';
   const isNative = () => Boolean(window.webkit?.messageHandlers?.roomSyncPull && window.webkit?.messageHandlers?.roomSyncPush);
   const isHttp = () => location.protocol === 'http:' || location.protocol === 'https:';
-  if (!isNative() && !isHttp()) return;
+  if (!isNative() && !isHttp()) {
+    setTimeout(() => { window.roomMaybeOpenOnboarding?.(); }, 60);
+    return;
+  }
 
   const rawGet = Storage.prototype.getItem.bind(localStorage);
   const rawSet = Storage.prototype.setItem.bind(localStorage);
@@ -1993,6 +2120,7 @@ document.addEventListener('click', event => {
   let applyingRemote = false;
   let pushTimer = null;
   let syncInFlight = false;
+  let initialSyncNotified = false;
 
   function bumpKeyTs(k, minTs = 0) {
     const next = Math.max(Date.now(), (meta.keyTs[k] || 0) + 1, minTs);
@@ -2263,6 +2391,10 @@ document.addEventListener('click', event => {
     } catch (_) {
     } finally {
       syncInFlight = false;
+      if (!initialSyncNotified) {
+        initialSyncNotified = true;
+        setTimeout(() => { window.roomMaybeOpenOnboarding?.(); }, 30);
+      }
     }
   }
 
@@ -2282,4 +2414,888 @@ document.addEventListener('click', event => {
     else flushPush(true);
   });
   window.addEventListener('pagehide', () => { flushPush(true); });
+})();
+
+// --- Universal Context Menu (Right-Click / Touch Long-Press) & Global Cmd+Z Undo Stack ---
+(function () {
+  const TOAST_MS = 3000;
+  const UNDO_LIMIT = 25;
+  const undoStack = [];
+  let ctxEl = null;
+  let toastEl = null;
+  let toastTimer = null;
+  let closeTimer = null;
+  let activeCtxTarget = null;
+  let lpTimer = null;
+  let lpStart = null;
+  let blockNextClickUntil = 0;
+
+  const ICO = {
+    play: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 2.8v10.4L13 8z" fill="currentColor"/></svg>',
+    refresh: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M13.2 8a5.2 5.2 0 1 1-1.4-3.5M13.5 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    trash: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2.8 4.4h10.4M6 4.4V2.9h4v1.5M4.5 4.4l.7 8.7h5.6l.7-8.7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    check: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 8.4l3.3 3.3L13 4.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    strike: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2.5 8h11M5.2 4.4c.5-.9 1.5-1.4 2.8-1.4 1.6 0 2.7.7 2.8 1.9M10.9 11.4c-.4 1-1.5 1.6-3 1.6-1.6 0-2.7-.6-3-1.7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    bookmark: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 2.5h8a.8.8 0 0 1 .8.8v10.5L8 11.2l-4.8 2.6V3.3a.8.8 0 0 1 .8-.8z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+    calc: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="3" y="2" width="10" height="12" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.2 5.2h5.6M5.5 8.5h1M8 8.5h1M10.5 8.5h0M5.5 11h1M8 11h1M10.5 11h0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+    book: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 3h4.2a1.8 1.8 0 0 1 1.8 1.8V13a1.4 1.4 0 0 0-1.4-1.2H3V3zm10 0H8.8A1.8 1.8 0 0 0 7 4.8V13a1.4 1.4 0 0 1 1.4-1.2H13V3z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
+    dockL: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="3.2" y="3.8" width="4" height="8.4" rx=".8" fill="currentColor"/></svg>',
+    dockR: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="8.8" y="3.8" width="4" height="8.4" rx=".8" fill="currentColor"/></svg>',
+    theme: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M12.6 10.1A5.2 5.2 0 0 1 5.9 3.4a5.2 5.2 0 1 0 6.7 6.7z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+    undo: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M5.5 4.2L2.5 7l3 2.8M3 7h6.5a3.5 3.5 0 0 1 0 7H7.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    folder: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2.2 4.2h4.2l1.2 1.4h6.2v7.2H2.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
+    export: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 2.5v7.2M5.2 5.3L8 2.5l2.8 2.8M3 10.5v2.5h10v-2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    eye: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M1.8 8s2.4-4 6.2-4 6.2 4 6.2 4-2.4 4-6.2 4-6.2-4-6.2-4z" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/></svg>',
+    close: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  };
+
+  function showRoomToast(msg, opts = {}) {
+    if (!toastEl || !toastEl.isConnected) {
+      toastEl = document.createElement('div');
+      toastEl.id = 'room-toast';
+      toastEl.className = 'room-toast';
+      toastEl.setAttribute('role', 'status');
+      toastEl.setAttribute('aria-live', 'polite');
+      document.body.appendChild(toastEl);
+    }
+    const dur = Math.max(800, Number(opts.duration) || TOAST_MS);
+    const undoBtn = opts.undoable
+      ? '<button type="button" class="room-toast-undo" data-toast-undo>Undo <kbd>⌘Z</kbd></button>'
+      : '';
+    toastEl.innerHTML = `<span class="room-toast-msg">${escapeHtml(msg)}</span>${undoBtn}<span class="room-toast-bar"></span>`;
+    toastEl.hidden = false;
+    const bar = toastEl.querySelector('.room-toast-bar');
+    if (bar) {
+      bar.style.animation = 'none';
+      void bar.offsetWidth;
+      bar.style.animation = `roomToastCountdown ${dur}ms linear forwards`;
+    }
+    toastEl.classList.add('is-open');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toastEl?.classList.remove('is-open');
+      setTimeout(() => {
+        if (toastEl && !toastEl.classList.contains('is-open')) toastEl.hidden = true;
+      }, 220);
+    }, dur);
+  }
+  window.showRoomToast = showRoomToast;
+
+  window.roomPushUndo = function (entry) {
+    if (!entry || typeof entry.undo !== 'function') return;
+    undoStack.push({ label: String(entry.label || 'Action'), undo: entry.undo });
+    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    showRoomToast(entry.label, { undoable: true, duration: TOAST_MS });
+  };
+
+  window.roomPerformUndo = async function () {
+    const entry = undoStack.pop();
+    if (!entry) return false;
+    try {
+      await entry.undo();
+      showRoomToast(`Undone · ${entry.label}`, { undoable: false, duration: TOAST_MS });
+    } catch (_) {}
+    return true;
+  };
+
+  function ensureCtxMenu() {
+    if (ctxEl && ctxEl.isConnected) return ctxEl;
+    ctxEl = document.createElement('div');
+    ctxEl.id = 'room-ctx-menu';
+    ctxEl.className = 'room-ctx-menu';
+    ctxEl.setAttribute('role', 'menu');
+    ctxEl.hidden = true;
+    document.body.appendChild(ctxEl);
+    return ctxEl;
+  }
+
+  function spawnCtxRipple(x, y) {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const rip = document.createElement('span');
+    rip.className = 'room-ctx-ripple';
+    rip.style.left = Math.round(x) + 'px';
+    rip.style.top = Math.round(y) + 'px';
+    document.body.appendChild(rip);
+    setTimeout(() => rip.remove(), 400);
+  }
+
+  function clearActiveCtxTarget() {
+    if (activeCtxTarget) {
+      activeCtxTarget.classList.remove('room-ctx-target');
+      activeCtxTarget = null;
+    }
+  }
+
+  function closeExamContextMenu(immediate = false) {
+    clearActiveCtxTarget();
+    if (!ctxEl || ctxEl.hidden) return;
+    clearTimeout(closeTimer);
+    ctxEl.classList.remove('is-open');
+    if (immediate) {
+      ctxEl.classList.remove('is-closing');
+      ctxEl.hidden = true;
+      return;
+    }
+    ctxEl.classList.add('is-closing');
+    closeTimer = setTimeout(() => {
+      closeTimer = null;
+      if (ctxEl && !ctxEl.classList.contains('is-open')) {
+        ctxEl.classList.remove('is-closing');
+        ctxEl.hidden = true;
+      }
+    }, 145);
+  }
+
+  async function restoreDeletedExamSnapshot(snap) {
+    if (!snap) return;
+    if (snap.prevStorageRaw !== null && snap.prevStorageRaw !== undefined) {
+      localStorage.setItem(snap.storageKey, snap.prevStorageRaw);
+    } else {
+      localStorage.removeItem(snap.storageKey);
+    }
+    if (snap.prevActiveExam !== null && snap.prevActiveExam !== undefined) {
+      localStorage.setItem('bluebook_suite_active_exam', snap.prevActiveExam);
+    }
+    if (snap.prevHistRaw !== null && snap.prevHistRaw !== undefined) {
+      localStorage.setItem(libraryHistoryKey, snap.prevHistRaw);
+    } else {
+      localStorage.removeItem(libraryHistoryKey);
+    }
+    if (Array.isArray(databaseAttempts) && Array.isArray(snap.prevDbAttempts)) {
+      databaseAttempts = snap.prevDbAttempts.slice();
+    }
+    const native = window.webkit?.messageHandlers?.roomHistory;
+    if (native && (snap.clearHistory || snap.attemptTime)) {
+      try { native.postMessage(snap.prevDbAttempts || []); } catch (_) {}
+    }
+    if (typeof renderLibrary === 'function' && document.querySelector('.room')) renderLibrary();
+    await window.roomSyncNow?.();
+  }
+
+  async function deleteExamRecords(examId, opts = {}, skipUndo = false) {
+    const clearProgress = opts.clearProgress !== false;
+    const clearHistory = Boolean(opts.clearHistory);
+    const attemptTime = opts.attemptTime ? Number(opts.attemptTime) : null;
+    const ex = EXAMS[examId];
+    const storageKey = getStorageKey(examId);
+
+    const snap = {
+      examId,
+      storageKey,
+      clearHistory,
+      attemptTime,
+      prevStorageRaw: localStorage.getItem(storageKey),
+      prevActiveExam: localStorage.getItem('bluebook_suite_active_exam'),
+      prevHistRaw: localStorage.getItem(libraryHistoryKey),
+      prevDbAttempts: Array.isArray(databaseAttempts) ? databaseAttempts.slice() : [],
+    };
+
+    if (clearProgress) {
+      localStorage.removeItem(storageKey);
+      if (snap.prevActiveExam === examId) {
+        localStorage.removeItem('bluebook_suite_active_exam');
+      }
+      if (typeof currentExamId !== 'undefined' && currentExamId === examId && typeof state !== 'undefined' && state.phase === 'intro') {
+        state = emptyState();
+      }
+    }
+
+    if (clearHistory || attemptTime) {
+      const keepRow = (row) => {
+        if (!row) return false;
+        if (row.examId !== examId) return true;
+        if (clearHistory) return false;
+        return Number(row.time) !== attemptTime;
+      };
+      const rows = readLibrary(libraryHistoryKey, []).filter(keepRow);
+      if (rows.length) localStorage.setItem(libraryHistoryKey, JSON.stringify(rows));
+      else localStorage.removeItem(libraryHistoryKey);
+      if (Array.isArray(databaseAttempts)) {
+        databaseAttempts = databaseAttempts.filter(keepRow);
+      }
+      const native = window.webkit?.messageHandlers?.roomDeleteHistory;
+      if (native && clearHistory) {
+        try { native.postMessage({ all: false, exams: [examId] }); } catch (_) {}
+      }
+    }
+
+    if (location.protocol === 'http:' || location.protocol === 'https:') {
+      try {
+        await fetch('/sync/delete-exam', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ examId, storageKey, clearProgress, clearHistory, attemptTime }),
+        });
+      } catch (_) {}
+    }
+
+    if (typeof renderLibrary === 'function' && document.querySelector('.room')) {
+      renderLibrary();
+    }
+    const label = ex?.title || examId;
+    let msg = `Updated · ${label}`;
+    if (attemptTime && !clearProgress) msg = `Deleted 1 history record · ${label}`;
+    else if (clearHistory && clearProgress) msg = `Cleared all records · ${label}`;
+    else if (clearProgress) msg = `Cleared Resume progress · ${label}`;
+
+    if (!skipUndo) {
+      window.roomPushUndo({
+        label: msg,
+        async undo() { await restoreDeletedExamSnapshot(snap); },
+      });
+    } else {
+      showRoomToast(msg);
+    }
+  }
+
+  let pendingActionMap = new Map();
+
+  function showContextMenuSpec(spec, clientX, clientY, targetEl) {
+    if (!spec || !Array.isArray(spec.items) || !spec.items.length) return;
+    const menu = ensureCtxMenu();
+    clearTimeout(closeTimer);
+    clearActiveCtxTarget();
+    if (targetEl && targetEl.isConnected && !targetEl.matches('.room, .exam-screen, .pdf-exam-shell, .results-screen, .check-screen')) {
+      activeCtxTarget = targetEl;
+      activeCtxTarget.classList.add('room-ctx-target');
+    }
+    spawnCtxRipple(clientX, clientY);
+
+    pendingActionMap = new Map();
+    const bodyHtml = spec.items.map((it, idx) => {
+      if (it.div) return '<div class="room-ctx-sep" role="separator"></div>';
+      if (it.disabled) return `<div class="room-ctx-note">${escapeHtml(it.label)}</div>`;
+      const key = 'a' + idx;
+      if (typeof it.run === 'function') pendingActionMap.set(key, it.run);
+      const ico = it.ico ? `<span class="room-ctx-ico">${it.ico}</span>` : '';
+      const kbd = it.kbd ? `<kbd class="room-ctx-kbd">${escapeHtml(it.kbd)}</kbd>` : '';
+      return `<button type="button" class="room-ctx-item ${it.danger ? 'is-danger' : ''}" role="menuitem" data-ctx-key="${key}">
+        ${ico}<span class="room-ctx-lbl">${escapeHtml(it.label)}</span>${kbd}
+      </button>`;
+    }).join('');
+
+    const badgeHtml = spec.badge
+      ? `<span class="room-ctx-badge ${spec.badgeCls || ''}">${escapeHtml(spec.badge)}</span>`
+      : '';
+    menu.innerHTML = `
+      <div class="room-ctx-head">
+        <span class="room-ctx-title">${escapeHtml(spec.title || 'Actions')}</span>
+        ${badgeHtml}
+      </div>
+      <div class="room-ctx-list">${bodyHtml}</div>`;
+
+    menu.classList.remove('is-open', 'is-closing');
+    menu.hidden = false;
+
+    const mw = menu.offsetWidth || 256;
+    const mh = menu.offsetHeight || 200;
+    const flipX = clientX + mw + 8 > window.innerWidth;
+    const flipY = clientY + mh + 8 > window.innerHeight;
+    const left = Math.max(8, Math.min(window.innerWidth - mw - 8, flipX ? clientX - mw : clientX));
+    const top = Math.max(8, Math.min(window.innerHeight - mh - 8, flipY ? clientY - mh : clientY));
+    menu.style.left = Math.round(left) + 'px';
+    menu.style.top = Math.round(top) + 'px';
+    menu.style.transformOrigin = `${flipY ? 'bottom' : 'top'} ${flipX ? 'right' : 'left'}`;
+    void menu.offsetWidth;
+    menu.classList.add('is-open');
+  }
+
+  function ongoingIdsForSubject(subjectKey) {
+    return Object.values(EXAMS)
+      .filter((ex) => {
+        if (subjectKey !== 'all' && ex.subjectKey !== subjectKey) return false;
+        const r = readLibrary(getStorageKey(ex.id), {});
+        return ['mcq_exam', 'mcq_check', 'frq_exam', 'frq_check', 'break'].includes(r.phase);
+      })
+      .map((ex) => ex.id);
+  }
+
+  function resolveContextSpec(rawTarget) {
+    if (!rawTarget || !(rawTarget instanceof Element)) return null;
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+    // 1. Floating Tool Panel (Desmos / Reference Sheet)
+    const floatPanel = rawTarget.closest('.room-float-panel');
+    if (floatPanel) {
+      const isDesmos = floatPanel.id === 'room-desmos-overlay';
+      const dockedLeft = floatPanel.classList.contains('is-dock-left');
+      const dockedRight = floatPanel.classList.contains('is-dock-right');
+      const items = [
+        {
+          ico: ICO.dockL,
+          label: dockedLeft ? 'Undock to Floating Window' : 'Dock to Left Side',
+          run: () => floatPanel.querySelector('[data-dock-cmd="left"]')?.click(),
+        },
+        {
+          ico: ICO.dockR,
+          label: dockedRight ? 'Undock to Floating Window' : 'Dock to Right Side',
+          run: () => floatPanel.querySelector('[data-dock-cmd="right"]')?.click(),
+        },
+        {
+          ico: ICO.refresh,
+          label: 'Expand / Compact Size',
+          run: () => floatPanel.querySelector(isDesmos ? '[data-dact="size"]' : '[data-ract="size"]')?.click(),
+        },
+        { div: true },
+        {
+          ico: ICO.close,
+          danger: true,
+          label: isDesmos ? 'Close Desmos Calculator' : 'Close Reference Sheet',
+          kbd: isDesmos ? 'D' : 'R',
+          run: () => (isDesmos ? window.roomToggleDesmos?.(false) : window.roomToggleRef?.(false)),
+        },
+      ];
+      return {
+        targetEl: floatPanel,
+        title: isDesmos ? 'Calculator · Desmos' : 'Reference Sheet',
+        badge: dockedLeft ? 'Left Dock' : (dockedRight ? 'Right Dock' : 'Floating'),
+        badgeCls: (dockedLeft || dockedRight) ? 'is-ongoing' : '',
+        items,
+      };
+    }
+
+    // 2. Test History Row
+    const histRow = rawTarget.closest('.room-history-item[data-exam-id]');
+    if (histRow) {
+      const examId = histRow.dataset.examId;
+      const histTime = histRow.dataset.historyTime ? Number(histRow.dataset.historyTime) : null;
+      const ex = EXAMS[examId];
+      if (!ex) return null;
+      const histCount = allAttempts().filter((a) => a.examId === examId).length;
+      const idx = allAttempts().findIndex((a) => a.examId === examId && Number(a.time) === Number(histTime));
+      const openBtn = histRow.querySelector('[data-action="room-history-open"]');
+      const hIdx = openBtn ? Number(openBtn.dataset.index) : idx;
+      const items = [];
+      if (hIdx >= 0) {
+        items.push({ ico: ICO.eye, label: 'View Results', run: () => document.querySelector(`[data-action="room-history-open"][data-index="${hIdx}"]`)?.click() });
+      }
+      items.push({ ico: ICO.play, label: 'Retake Test', run: async () => { await ensureExamLoaded(examId); roomSetup(examId); } });
+      if (hIdx >= 0 && typeof roomExport === 'function') {
+        items.push({ ico: ICO.export, label: 'Export Missed Questions', run: () => { const a = allAttempts()[hIdx]; if (a) roomExport(a); } });
+      }
+      items.push({ div: true });
+      items.push({ ico: ICO.trash, danger: true, label: 'Delete This Attempt', run: () => deleteExamRecords(examId, { clearProgress: false, clearHistory: false, attemptTime: histTime }) });
+      if (histCount > 1) {
+        items.push({ ico: ICO.trash, danger: true, label: `Delete All Records (${histCount})`, run: () => deleteExamRecords(examId, { clearProgress: true, clearHistory: true }) });
+      }
+      return { targetEl: histRow, title: ex.title, badge: 'History', badgeCls: 'is-done', items };
+    }
+
+    // 3. Mistake Bank Row
+    const mistakeRow = rawTarget.closest('.room-mistake-row[data-mistake-exam]');
+    if (mistakeRow) {
+      const eid = mistakeRow.dataset.mistakeExam;
+      const orig = Number(mistakeRow.dataset.mistakeOrig);
+      const ex = EXAMS[eid];
+      const items = [
+        {
+          ico: ICO.play,
+          label: `Open Question Q${orig}`,
+          run: () => mistakeRow.querySelector('[data-action="open-mistake-question"]')?.click(),
+        },
+        {
+          ico: ICO.check,
+          danger: true,
+          label: 'Mark as Mastered (Remove)',
+          run: () => {
+            const prev = loadGlobalMistakes();
+            saveGlobalMistakes(prev.filter((m) => !(m.examId === eid && Number(m.origId) === orig)));
+            render();
+            window.roomPushUndo({
+              label: `Marked Q${orig} as mastered`,
+              undo() { saveGlobalMistakes(prev); render(); },
+            });
+          },
+        },
+        { div: true },
+        {
+          ico: ICO.export,
+          label: 'Push Mistake Bank to Anki',
+          run: () => document.querySelector('[data-action="push-anki-mistakes"]')?.click(),
+        },
+      ];
+      return { targetEl: mistakeRow, title: `${ex?.title || eid} · Q${orig}`, badge: 'Mistake', items };
+    }
+
+    // 4. Question Bank Exam Card or Row
+    const examRow = rawTarget.closest('.room-row[data-exam-id], .room-card[data-exam-id]');
+    if (examRow) {
+      const examId = examRow.dataset.examId;
+      const ex = EXAMS[examId];
+      if (!ex) return null;
+      const saved = readLibrary(getStorageKey(examId), {});
+      const ongoing = ['mcq_exam', 'mcq_check', 'frq_exam', 'frq_check', 'break'].includes(saved.phase);
+      const completed = ['complete', 'results'].includes(saved.phase);
+      const histCount = allAttempts().filter((a) => a.examId === examId).length;
+      const items = [];
+      let badge = 'Not Started';
+      let badgeCls = '';
+
+      if (ongoing) {
+        badge = 'In Progress';
+        badgeCls = 'is-ongoing';
+        items.push({ ico: ICO.play, label: 'Resume Test', run: () => examRow.querySelector('[data-action="room-open"]')?.click() });
+        items.push({ ico: ICO.refresh, label: 'Start Fresh (New Setup)', run: async () => { await ensureExamLoaded(examId); roomSetup(examId); } });
+        items.push({ div: true });
+        items.push({ ico: ICO.trash, danger: true, label: 'Clear Progress (Remove Resume)', run: () => deleteExamRecords(examId, { clearProgress: true, clearHistory: false }) });
+        if (histCount > 0) {
+          items.push({ ico: ICO.trash, danger: true, label: `Delete All Records & History (${histCount})`, run: () => deleteExamRecords(examId, { clearProgress: true, clearHistory: true }) });
+        }
+      } else if (completed || histCount > 0) {
+        badge = 'Completed';
+        badgeCls = 'is-done';
+        if (completed) {
+          items.push({
+            ico: ICO.eye,
+            label: 'View Latest Results',
+            run: async () => {
+              await ensureExamLoaded(examId);
+              currentExamId = examId;
+              reviewedAttempt = null;
+              state = loadState() || emptyState();
+              closeAllUi();
+              openResults();
+              render();
+            },
+          });
+        }
+        items.push({ ico: ICO.play, label: 'Start / Setup Test', run: async () => { await ensureExamLoaded(examId); roomSetup(examId); } });
+        items.push({ div: true });
+        items.push({
+          ico: ICO.trash,
+          danger: true,
+          label: histCount ? `Delete Saved Record & History (${histCount})` : 'Delete Saved Record',
+          run: () => deleteExamRecords(examId, { clearProgress: true, clearHistory: true }),
+        });
+      } else {
+        items.push({ ico: ICO.play, label: 'Start / Setup Test', run: async () => { await ensureExamLoaded(examId); roomSetup(examId); } });
+        items.push({ disabled: true, label: 'No saved record to clear' });
+      }
+      return { targetEl: examRow, title: ex.title, badge, badgeCls, items };
+    }
+
+    // 5. Folder Card in Hierarchy View
+    const folderCard = rawTarget.closest('.room-folder-card[data-folder]');
+    if (folderCard) {
+      const fname = folderCard.dataset.folder;
+      return {
+        targetEl: folderCard,
+        title: fname,
+        badge: 'Folder',
+        items: [
+          { ico: ICO.folder, label: 'Open Folder', run: () => folderCard.click() },
+          { ico: ICO.refresh, label: 'Switch to Flat List View', run: () => document.querySelector('[data-action="set-display-mode"][data-mode="list"]')?.click() },
+          { ico: ICO.refresh, label: 'Switch to Grid View', run: () => document.querySelector('[data-action="set-display-mode"][data-mode="grid"]')?.click() },
+        ],
+      };
+    }
+
+    // 6. Sidebar Subject Item
+    const subjBtn = rawTarget.closest('.room-nav-item[data-action="filter-subject"]');
+    if (subjBtn) {
+      const skey = subjBtn.dataset.filter;
+      const ongoingIds = ongoingIdsForSubject(skey);
+      const labelEl = subjBtn.querySelector('.room-nav-lbl');
+      const subjName = labelEl ? labelEl.textContent.trim() : 'Subject';
+      const items = [
+        { ico: ICO.folder, label: `Show ${subjName}`, run: () => subjBtn.click() },
+        { ico: ICO.refresh, label: 'Show Flat List', run: () => { subjBtn.click(); document.querySelector('[data-action="set-display-mode"][data-mode="list"]')?.click(); } },
+      ];
+      if (ongoingIds.length) {
+        items.push({ div: true });
+        items.push({
+          ico: ICO.trash,
+          danger: true,
+          label: `Clear All Resume (${ongoingIds.length})`,
+          run: async () => {
+            const snaps = ongoingIds.map((id) => ({
+              id,
+              key: getStorageKey(id),
+              raw: localStorage.getItem(getStorageKey(id)),
+            }));
+            for (const id of ongoingIds) {
+              await deleteExamRecords(id, { clearProgress: true, clearHistory: false }, true);
+            }
+            window.roomPushUndo({
+              label: `Cleared ${ongoingIds.length} Resume record(s) in ${subjName}`,
+              async undo() {
+                for (const s of snaps) {
+                  if (s.raw !== null) localStorage.setItem(s.key, s.raw);
+                }
+                if (typeof renderLibrary === 'function' && document.querySelector('.room')) renderLibrary();
+                await window.roomSyncNow?.();
+              },
+            });
+          },
+        });
+      }
+      return { targetEl: subjBtn, title: subjName, badge: ongoingIds.length ? `${ongoingIds.length} Resume` : '', badgeCls: ongoingIds.length ? 'is-ongoing' : '', items };
+    }
+
+    // 7. Native MCQ Choice Option
+    const optRow = rawTarget.closest('.question-option-row');
+    const optCard = optRow?.querySelector('.option-card[data-action="answer"]');
+    if (optCard && typeof state !== 'undefined' && state.phase === 'mcq_exam') {
+      const letter = optCard.dataset.letter;
+      const orig = Number(optCard.dataset.orig);
+      const selected = state.mcq.answers[orig] === letter;
+      const eliminated = Boolean(state.mcq.eliminated?.[orig]?.[letter]);
+      const marked = Boolean(state.mcq.marks?.[orig]);
+      const items = [
+        {
+          ico: ICO.check,
+          label: selected ? `Clear Choice ${letter}` : `Select Choice ${letter}`,
+          kbd: letter,
+          run: () => {
+            const prevAns = state.mcq.answers[orig];
+            if (selected) delete state.mcq.answers[orig];
+            else state.mcq.answers[orig] = letter;
+            saveState();
+            render();
+            window.roomPushUndo({
+              label: selected ? `Cleared Choice ${letter}` : `Selected Choice ${letter}`,
+              undo() {
+                if (prevAns !== undefined) state.mcq.answers[orig] = prevAns;
+                else delete state.mcq.answers[orig];
+                saveState();
+                render();
+              },
+            });
+          },
+        },
+        {
+          ico: ICO.strike,
+          label: eliminated ? `Restore Choice ${letter}` : `Cross Out Choice ${letter}`,
+          run: () => {
+            const prevElim = Boolean(state.mcq.eliminated?.[orig]?.[letter]);
+            state.mcq.eliminated[orig] = state.mcq.eliminated[orig] || {};
+            state.mcq.eliminated[orig][letter] = !prevElim;
+            saveState();
+            render();
+            window.roomPushUndo({
+              label: prevElim ? `Restored Choice ${letter}` : `Crossed out Choice ${letter}`,
+              undo() {
+                state.mcq.eliminated[orig] = state.mcq.eliminated[orig] || {};
+                state.mcq.eliminated[orig][letter] = prevElim;
+                saveState();
+                render();
+              },
+            });
+          },
+        },
+        { div: true },
+        {
+          ico: ICO.bookmark,
+          label: marked ? 'Unmark for Review' : 'Mark for Review',
+          kbd: 'M',
+          run: () => document.querySelector('[data-action="toggle-mark"]')?.click(),
+        },
+      ];
+      if (undoStack.length) {
+        items.push({ ico: ICO.undo, label: `Undo (${undoStack[undoStack.length - 1].label})`, kbd: '⌘Z', run: () => window.roomPerformUndo() });
+      }
+      return { targetEl: optCard, title: `Choice ${letter}`, badge: eliminated ? 'Crossed Out' : (selected ? 'Selected' : ''), badgeCls: selected ? 'is-done' : '', items };
+    }
+
+    // 8. PDF Dual-Pane Bubble Option
+    const pdfOptRow = rawTarget.closest('.pdf-opt-row');
+    const pdfBubble = pdfOptRow?.querySelector('.pdf-bubble[data-pdf-choose]');
+    const pdfCtx = typeof window.roomGetPdfExamState === 'function' ? window.roomGetPdfExamState() : null;
+    if (pdfBubble && pdfCtx) {
+      const { p } = pdfCtx;
+      const letter = pdfBubble.dataset.pdfChoose;
+      const qNum = p.currentQ;
+      const k = String(qNum);
+      const selected = p.answers[k] === letter;
+      const ek = `${qNum}_${letter}`;
+      const eliminated = Boolean(p.eliminated[ek]);
+      const items = [
+        {
+          ico: ICO.check,
+          label: selected ? `Clear Choice ${letter}` : `Select Choice ${letter}`,
+          run: () => {
+            const prevAns = p.answers[k];
+            if (selected) delete p.answers[k];
+            else p.answers[k] = letter;
+            p.checkedQ = null;
+            window.roomRenderPdfExam?.();
+            window.roomPushUndo({
+              label: selected ? `Cleared Q${qNum} Choice ${letter}` : `Selected Q${qNum} Choice ${letter}`,
+              undo() {
+                if (prevAns) p.answers[k] = prevAns;
+                else delete p.answers[k];
+                p.checkedQ = null;
+                window.roomRenderPdfExam?.();
+              },
+            });
+          },
+        },
+        {
+          ico: ICO.strike,
+          label: eliminated ? `Restore Choice ${letter}` : `Cross Out Choice ${letter}`,
+          run: () => {
+            const prevElim = Boolean(p.eliminated[ek]);
+            p.eliminated[ek] = !prevElim;
+            window.roomRenderPdfExam?.();
+            window.roomPushUndo({
+              label: prevElim ? `Restored Choice ${letter}` : `Crossed out Choice ${letter}`,
+              undo() { p.eliminated[ek] = prevElim; window.roomRenderPdfExam?.(); },
+            });
+          },
+        },
+        { div: true },
+        {
+          ico: ICO.bookmark,
+          label: p.marks[k] ? 'Unmark Question' : 'Mark for Review',
+          run: () => document.querySelector('[data-pdf-act="toggle-mark"]')?.click(),
+        },
+      ];
+      return { targetEl: pdfBubble, title: `Q${qNum} · Choice ${letter}`, items };
+    }
+
+    // 9. Navigator Question Tile / PDF Bubble Chip
+    const qTile = rawTarget.closest('.question-tile[data-orig], .pdf-q-chip[data-pdf-q]');
+    if (qTile) {
+      if (qTile.matches('.pdf-q-chip[data-pdf-q]') && pdfCtx) {
+        const { p } = pdfCtx;
+        const qNum = Number(qTile.dataset.pdfQ);
+        const k = String(qNum);
+        const items = [
+          { ico: ICO.play, label: `Jump to Q${qNum}`, run: () => qTile.click() },
+          {
+            ico: ICO.bookmark,
+            label: p.marks[k] ? `Unmark Q${qNum}` : `Mark Q${qNum} for Review`,
+            run: () => {
+              const prevM = Boolean(p.marks[k]);
+              if (prevM) delete p.marks[k]; else p.marks[k] = true;
+              window.roomRenderPdfExam?.();
+              window.roomPushUndo({ label: `Toggled Mark Q${qNum}`, undo() { if (prevM) p.marks[k] = true; else delete p.marks[k]; window.roomRenderPdfExam?.(); } });
+            },
+          },
+        ];
+        if (p.answers[k]) {
+          items.push({
+            ico: ICO.trash,
+            danger: true,
+            label: `Clear Answer Q${qNum} (${p.answers[k]})`,
+            run: () => {
+              const prevA = p.answers[k];
+              delete p.answers[k];
+              window.roomRenderPdfExam?.();
+              window.roomPushUndo({ label: `Cleared Answer Q${qNum}`, undo() { p.answers[k] = prevA; window.roomRenderPdfExam?.(); } });
+            },
+          });
+        }
+        return { targetEl: qTile, title: `Question ${qNum}`, items };
+      }
+      const sec = qTile.dataset.section;
+      const orig = Number(qTile.dataset.orig);
+      const secSt = typeof sectionState === 'function' ? sectionState(sec) : null;
+      const items = [{ ico: ICO.play, label: `Jump to Question ${orig}`, run: () => qTile.click() }];
+      if (secSt) {
+        items.push({
+          ico: ICO.bookmark,
+          label: secSt.marks?.[orig] ? 'Unmark for Review' : 'Mark for Review',
+          run: () => {
+            const prevM = Boolean(secSt.marks[orig]);
+            if (prevM) delete secSt.marks[orig]; else secSt.marks[orig] = true;
+            saveState();
+            render();
+            window.roomPushUndo({ label: `Toggled Mark Q${orig}`, undo() { if (prevM) secSt.marks[orig] = true; else delete secSt.marks[orig]; saveState(); render(); } });
+          },
+        });
+        if (sec === 'mcq' && secSt.answers?.[orig]) {
+          items.push({
+            ico: ICO.trash,
+            danger: true,
+            label: `Clear Answer (${secSt.answers[orig]})`,
+            run: () => {
+              const prevA = secSt.answers[orig];
+              delete secSt.answers[orig];
+              saveState();
+              render();
+              window.roomPushUndo({ label: `Cleared Answer Q${orig}`, undo() { secSt.answers[orig] = prevA; saveState(); render(); } });
+            },
+          });
+        }
+      }
+      return { targetEl: qTile, title: `Question ${orig}`, items };
+    }
+
+    // 10A. Active Exam Canvas (Native or PDF)
+    const examShell = rawTarget.closest('.exam-screen, .pdf-exam-shell');
+    if (examShell) {
+      const ex = typeof getCurrentExam === 'function' ? getCurrentExam() : null;
+      const showCalc = ex && ex.calculator && ex.calculator !== 'none';
+      const showRef = ex && (ex.referencePdf || ex.referenceType);
+      const isPdf = ex && ex.mode === 'pdf';
+      const items = [];
+      if (!isPdf) {
+        const markEl = document.querySelector('[data-action="toggle-mark"]');
+        items.push({ ico: ICO.bookmark, label: markEl?.checked ? 'Unmark for Review' : 'Mark for Review', kbd: 'M', run: () => markEl?.click() });
+      } else {
+        const pdfMark = document.querySelector('[data-pdf-act="toggle-mark"]');
+        items.push({ ico: ICO.bookmark, label: pdfMark?.checked ? 'Unmark for Review' : 'Mark for Review', run: () => pdfMark?.click() });
+      }
+      if (showCalc) items.push({ ico: ICO.calc, label: 'Toggle Desmos Calculator', kbd: 'D', run: () => window.roomToggleDesmos?.() });
+      if (showRef) items.push({ ico: ICO.book, label: 'Toggle Reference Sheet', kbd: 'R', run: () => window.roomToggleRef?.() });
+      items.push({ ico: ICO.theme, label: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode', run: () => document.querySelector('[data-action="room-toggle-theme"]')?.click() });
+      if (undoStack.length) {
+        items.push({ ico: ICO.undo, label: `Undo · ${undoStack[undoStack.length - 1].label}`, kbd: '⌘Z', run: () => window.roomPerformUndo() });
+      }
+      items.push({ div: true });
+      if (!isPdf) {
+        items.push({ ico: ICO.eye, label: 'Go to Check Your Work', run: () => document.querySelector('[data-action="open-nav"]')?.click() || document.querySelector('.pager-btns [data-action="go-check"]')?.click() });
+      }
+      items.push({ ico: ICO.close, danger: true, label: 'Exit to Question Bank', run: () => document.querySelector('[data-action="to-intro"]')?.click() });
+      return { targetEl: examShell, title: ex?.title || 'Exam Tools', badge: isPdf ? 'PDF Mode' : 'Active Exam', items };
+    }
+
+    // 10B. Results / Check Your Work Canvas
+    const resShell = rawTarget.closest('.results-screen, .check-screen');
+    if (resShell) {
+      const ex = typeof getCurrentExam === 'function' ? getCurrentExam() : null;
+      const mistakeBtn = document.querySelector('[data-action="room-toggle-mistake"]');
+      const copyBtn = document.querySelector('[data-action="copy-review-question"]');
+      const items = [];
+      if (mistakeBtn) items.push({ ico: ICO.bookmark, label: mistakeBtn.textContent.trim(), run: () => mistakeBtn.click() });
+      if (copyBtn) items.push({ ico: ICO.export, label: 'Copy Question', run: () => copyBtn.click() });
+      items.push({ ico: ICO.theme, label: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode', run: () => window.roomToggleTheme?.() });
+      if (resShell.matches('.check-screen')) {
+        items.push({ ico: ICO.play, label: 'Return to Test', run: () => document.querySelector('[data-action="back-to-test"]')?.click() });
+      } else {
+        items.push({ ico: ICO.refresh, label: 'Retake Test', run: () => document.querySelector('[data-action="restart"]')?.click() });
+      }
+      items.push({ div: true });
+      items.push({ ico: ICO.folder, label: 'Back to Question Bank', run: () => document.querySelector('[data-action="to-intro"]')?.click() });
+      return { targetEl: resShell, title: ex?.title || 'Test Review', items };
+    }
+
+    // 10C. Question Bank / Library Canvas
+    const roomRoot = rawTarget.closest('.room');
+    if (roomRoot) {
+      const items = [
+        { ico: ICO.folder, label: 'Folders View', run: () => document.querySelector('[data-action="set-display-mode"][data-mode="folder"]')?.click() },
+        { ico: ICO.folder, label: 'Grid View', run: () => document.querySelector('[data-action="set-display-mode"][data-mode="grid"]')?.click() },
+        { ico: ICO.folder, label: 'List View', run: () => document.querySelector('[data-action="set-display-mode"][data-mode="list"]')?.click() },
+        { div: true },
+        { ico: ICO.export, label: 'Import JSON Bank…', run: () => document.getElementById('room-file')?.click() },
+        { ico: ICO.refresh, label: 'Sync Devices Now', run: async () => { await window.roomSyncNow?.(); showRoomToast('Synced with Mac/iPad'); } },
+        { ico: ICO.theme, label: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode', run: () => document.querySelector('[data-action="room-toggle-theme"]')?.click() },
+      ];
+      if (undoStack.length) {
+        items.push({ div: true });
+        items.push({ ico: ICO.undo, label: `Undo · ${undoStack[undoStack.length - 1].label}`, kbd: '⌘Z', run: () => window.roomPerformUndo() });
+      }
+      return { targetEl: roomRoot, title: 'AP Exam Room', badge: libraryView, items };
+    }
+
+    return null;
+  }
+
+  document.addEventListener('contextmenu', (e) => {
+    const t = e.target;
+    if (t && t.closest('input, textarea, select, [contenteditable="true"]')) return;
+    const sel = window.getSelection()?.toString().trim();
+    if (sel && t?.closest('.stem-pane, .question-prompt, .question-combined, .explanation-box, .room-answer-exp-content')) return;
+
+    const spec = resolveContextSpec(t);
+    if (!spec) return;
+    e.preventDefault();
+    showContextMenuSpec(spec, e.clientX, e.clientY, spec.targetEl);
+  });
+
+  document.addEventListener('pointerdown', (e) => {
+    if (ctxEl && !ctxEl.hidden && !e.target.closest('#room-ctx-menu')) {
+      closeExamContextMenu();
+    }
+    if (e.pointerType !== 'touch') return;
+    if (e.target.closest('button, input, textarea, select, summary, a, [data-action="answer"], .pdf-bubble')) return;
+    const spec = resolveContextSpec(e.target);
+    if (!spec) return;
+    clearTimeout(lpTimer);
+    lpStart = { x: e.clientX, y: e.clientY, target: e.target };
+    lpTimer = setTimeout(() => {
+      if (!lpStart) return;
+      const freshSpec = resolveContextSpec(lpStart.target);
+      if (freshSpec) {
+        blockNextClickUntil = Date.now() + 600;
+        showContextMenuSpec(freshSpec, lpStart.x, lpStart.y, freshSpec.targetEl);
+      }
+      lpStart = null;
+    }, 480);
+  });
+
+  document.addEventListener('pointermove', (e) => {
+    if (!lpStart) return;
+    if (Math.hypot(e.clientX - lpStart.x, e.clientY - lpStart.y) > 10) {
+      clearTimeout(lpTimer);
+      lpStart = null;
+    }
+  });
+  const cancelLongPress = () => { clearTimeout(lpTimer); lpStart = null; };
+  document.addEventListener('pointerup', cancelLongPress);
+  document.addEventListener('pointercancel', cancelLongPress);
+  document.addEventListener('scroll', () => { cancelLongPress(); closeExamContextMenu(true); }, true);
+  window.addEventListener('resize', () => closeExamContextMenu(true));
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeExamContextMenu();
+      return;
+    }
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'z') {
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      if (undoStack.length > 0) {
+        e.preventDefault();
+        closeExamContextMenu(true);
+        window.roomPerformUndo();
+      }
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (Date.now() < blockNextClickUntil) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, true);
+
+  document.addEventListener('click', async (e) => {
+    const undoBtn = e.target.closest('[data-toast-undo]');
+    if (undoBtn) {
+      await window.roomPerformUndo();
+      return;
+    }
+    const item = e.target.closest('#room-ctx-menu [data-ctx-key]');
+    if (!item || !ctxEl) return;
+    const key = item.dataset.ctxKey;
+    const fn = pendingActionMap.get(key);
+    closeExamContextMenu(true);
+    if (typeof fn === 'function') {
+      await fn();
+    }
+  });
+})();
+
+// --- macOS Unified Header Window Drag & Zoom Integration ---
+(function () {
+  if (!window.ROOM_IS_APP_WEBKIT) return;
+  document.documentElement.classList.add('is-mac-app');
+  const HEADER_SEL = '.room-header, .exam-header, .results-header, .break-header';
+  const INTERACTIVE_SEL = 'button, a, input, select, textarea, label, [data-action], [data-pdf-act], [data-stats-act], .room-dropdown, .room-float-panel, summary';
+
+  document.addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || e.detail > 1) return;
+    const hdr = e.target.closest?.(HEADER_SEL);
+    if (!hdr || e.target.closest?.(INTERACTIVE_SEL)) return;
+    window.webkit?.messageHandlers?.roomStartWindowDrag?.postMessage(true);
+  });
+
+  document.addEventListener('dblclick', (e) => {
+    const hdr = e.target.closest?.(HEADER_SEL);
+    if (!hdr || e.target.closest?.(INTERACTIVE_SEL)) return;
+    window.webkit?.messageHandlers?.roomToggleZoom?.postMessage(true);
+  });
 })();

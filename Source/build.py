@@ -62,6 +62,7 @@ injected_js = "\n".join(
         (root / "BluebookTools.js").read_text(),
         (root / "PdfExam.js").read_text(),
         (root / "Library.js").read_text(),
+        (root / "Stats.js").read_text(),
         (root / "Settings.js").read_text(),
         "restoreQuestionBank();",
     ]
@@ -89,7 +90,7 @@ change(
     "if (action === 'restart') { roomSetup(currentExamId); return; }",
 )
 change("function startNewExam() {", "function startNewExam(settings = {}) {")
-change("      fresh.phase = 'mcq_exam';", "      fresh.phase = 'mcq_exam';\n      fresh.roomSettings = settings;\n      if (settings.pdf) fresh.pdf = Object.assign({ answers:{}, eliminated:{}, marks:{}, responses:{}, rubricScores:{}, zoom:1.0 }, settings.pdf, { currentPage: settings.pdf.startPage, currentQ: settings.pdf.questionStartNum });")
+change("      fresh.phase = 'mcq_exam';", "      fresh.phase = 'mcq_exam';\n      fresh.startedAt = Date.now();\n      fresh.roomSettings = settings;\n      if (settings.pdf) fresh.pdf = Object.assign({ answers:{}, eliminated:{}, marks:{}, responses:{}, rubricScores:{}, zoom:1.0 }, settings.pdf, { currentPage: settings.pdf.startPage, currentQ: settings.pdf.questionStartNum });")
 change(
     "      fresh.mcq.timeRemaining = ex.durationSeconds;\n      fresh.mcq.timerStarted = true;\n      fresh.mcq.examEndAt = Date.now() + ex.durationSeconds * 1000;",
     """      const duration = settings.timing==='untimed' ? null : settings.timing==='custom' ? settings.minutes*60 : ex.durationSeconds;
@@ -111,7 +112,8 @@ change(
 change("      Object.assign(state, fresh);", "      Object.assign(state, fresh);\n      roomFocus(Boolean(settings.focus));")
 change(
     "      state.frq.timeRemaining = ex.frqDurationSeconds || 5400;\n      state.frq.timerStarted = true;\n      state.frq.examEndAt = Date.now() + state.frq.timeRemaining * 1000;",
-    """      state.frq.timeRemaining = roomTimer('frq',ex.frqDurationSeconds || 5400);
+    """      state.frq.startedAt = Date.now();
+      state.frq.timeRemaining = roomTimer('frq',ex.frqDurationSeconds || 5400);
       state.frq.timerStarted = state.frq.timeRemaining!==null;
       state.frq.examEndAt = state.frq.timerStarted ? Date.now() + state.frq.timeRemaining * 1000 : null;""",
 )
@@ -241,6 +243,11 @@ change(
 change(
     "${q.promptHtml ? `<div class=\"prompt\">${getPromptHtml(q)}</div>` : ''}",
     "${q.promptHtml ? `<div class=\"prompt\">${getPromptHtml(q)}</div>` : ''}${s.responses?.[q.origId] ? `<div class=\"explanation-box\"><h3>Your Response</h3><p style=\"white-space:pre-wrap;font-family:ui-monospace,monospace;\">${escapeHtml(s.responses[q.origId])}</p></div>` : ''}${typeof renderNativeFrqRubricBlock==='function'?renderNativeFrqRubricBlock(ex,q,s):''}",
+)
+
+change(
+    "      if (eliminated && eliminationActive) cls += ' eliminated';",
+    "      if (eliminated) cls += ' eliminated';",
 )
 
 # 6. UI labels & results hooks

@@ -114,6 +114,131 @@ def push_sync_state(items: dict, history_rows=None) -> dict:
     return {"ok": True, "serverTime": int(time.time() * 1000)}
 
 
+def delete_exam_sync_records(
+    exam_id: str,
+    storage_key: str,
+    clear_progress: bool = True,
+    clear_history: bool = False,
+    attempt_time=None,
+) -> dict:
+    now_ms = int(time.time() * 1000)
+    conn = open_sync_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        if clear_progress and storage_key:
+            conn.execute(
+                "INSERT OR REPLACE INTO kv_sync(k, v, updated_at, deleted) VALUES(?,?,?,1)",
+                (storage_key, "", now_ms),
+            )
+        if clear_history and exam_id:
+            conn.execute("DELETE FROM attempts WHERE exam = ?", (exam_id,))
+        elif attempt_time is not None and exam_id:
+            conn.execute("DELETE FROM attempts WHERE exam = ? AND time = ?", (exam_id, int(attempt_time)))
+
+        if clear_history or attempt_time is not None:
+            hist_row = conn.execute("SELECT v FROM kv_sync WHERE k = 'ap-room-history-v1' AND deleted = 0").fetchone()
+            if hist_row:
+                try:
+                    arr = json.loads(hist_row[0] or "[]")
+                    if isinstance(arr, list):
+                        def _keep(r):
+                            if not isinstance(r, dict):
+                                return False
+                            if r.get("examId") != exam_id:
+                                return True
+                            if clear_history:
+                                return False
+                            return int(r.get("time") or 0) != int(attempt_time)
+
+                        filtered = [r for r in arr if _keep(r)]
+                        conn.execute(
+                            "INSERT OR REPLACE INTO kv_sync(k, v, updated_at, deleted) VALUES(?,?,?,?)",
+                            (
+                                "ap-room-history-v1",
+                                json.dumps(filtered, ensure_ascii=False) if filtered else "",
+                                now_ms,
+                                0 if filtered else 1,
+                            ),
+                        )
+                except Exception:
+                    pass
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    return {"ok": True, "serverTime": now_ms}
+
+
+def clear_sync_data(
+    clear_history: bool = False,
+    clear_progress: bool = False,
+    clear_mistakes: bool = False,
+    clear_imports: bool = False,
+    clear_profile: bool = False,
+    imported_ids=None,
+) -> dict:
+    now_ms = int(time.time() * 1000)
+    imported_set = {str(x) for x in (imported_ids or []) if x}
+    conn = open_sync_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        if clear_history:
+            conn.execute("DELETE FROM attempts")
+            conn.execute(
+                "INSERT OR REPLACE INTO kv_sync(k, v, updated_at, deleted) VALUES('ap-room-history-v1', '', ?, 1)",
+                (now_ms,),
+            )
+        elif imported_set:
+            for eid in imported_set:
+                conn.execute("DELETE FROM attempts WHERE exam = ?", (eid,))
+            hist_row = conn.execute("SELECT v FROM kv_sync WHERE k = 'ap-room-history-v1' AND deleted = 0").fetchone()
+            if hist_row:
+                try:
+                    arr = json.loads(hist_row[0] or "[]")
+                    if isinstance(arr, list):
+                        filtered = [r for r in arr if isinstance(r, dict) and r.get("examId") not in imported_set]
+                        conn.execute(
+                            "INSERT OR REPLACE INTO kv_sync(k, v, updated_at, deleted) VALUES(?,?,?,?)",
+                            ("ap-room-history-v1", json.dumps(filtered, ensure_ascii=False) if filtered else "", now_ms, 0 if filtered else 1),
+                        )
+                except Exception:
+                    pass
+
+        if clear_progress or clear_history or imported_set:
+            rows = conn.execute("SELECT k, v FROM kv_sync WHERE k LIKE 'bluebook_exam_state_%' AND deleted = 0").fetchall()
+            for (k, v) in rows:
+                eid = k.replace("bluebook_exam_state_", "", 1)
+                is_done = False
+                try:
+                    phase = (json.loads(v or "{}") or {}).get("phase")
+                    is_done = phase in ("complete", "results")
+                except Exception:
+                    pass
+                should_del = (eid in imported_set) or (clear_history and is_done) or (clear_progress and not is_done)
+                if should_del:
+                    conn.execute("INSERT OR REPLACE INTO kv_sync(k, v, updated_at, deleted) VALUES(?, '', ?, 1)", (k, now_ms))
+            if clear_progress:
+                conn.execute("INSERT OR REPLACE INTO kv_sync(k, v, updated_at, deleted) VALUES('bluebook_suite_active_exam', '', ?, 1)", (now_ms,))
+
+        if clear_mistakes:
+            conn.execute("INSERT OR REPLACE INTO kv_sync(k, v, updated_at, deleted) VALUES('ap-room-mistakes-v1', '', ?, 1)", (now_ms,))
+        if clear_imports:
+            conn.execute("INSERT OR REPLACE INTO kv_sync(k, v, updated_at, deleted) VALUES('ap-room-imports-v1', '', ?, 1)", (now_ms,))
+        if clear_profile:
+            conn.execute("INSERT OR REPLACE INTO kv_sync(k, v, updated_at, deleted) VALUES('ap-room-preferences-v1', '', ?, 1)", (now_ms,))
+            conn.execute("INSERT OR REPLACE INTO kv_sync(k, v, updated_at, deleted) VALUES('room_theme_v1', '', ?, 1)", (now_ms,))
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    return {"ok": True, "serverTime": now_ms}
+
+
 def safe_under(base: Path, rel: str):
     cleaned = urllib.parse.unquote(rel).lstrip("/")
     if ".." in Path(cleaned).parts:
@@ -340,6 +465,43 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
             res = push_sync_state(payload.get("items") or {}, payload.get("historyRows"))
+            body = json.dumps(res, ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if parsed.path == "/sync/delete-exam":
+            length = int(self.headers.get("Content-Length", "0"))
+            payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
+            res = delete_exam_sync_records(
+                str(payload.get("examId") or ""),
+                str(payload.get("storageKey") or ""),
+                bool(payload.get("clearProgress", True)),
+                bool(payload.get("clearHistory", False)),
+                payload.get("attemptTime"),
+            )
+            body = json.dumps(res, ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if parsed.path == "/sync/clear-data":
+            length = int(self.headers.get("Content-Length", "0"))
+            payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
+            res = clear_sync_data(
+                bool(payload.get("clearHistory", False)),
+                bool(payload.get("clearProgress", False)),
+                bool(payload.get("clearMistakes", False)),
+                bool(payload.get("clearImports", False)),
+                bool(payload.get("clearProfile", False)),
+                payload.get("importedIds") or [],
+            )
             body = json.dumps(res, ensure_ascii=False).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
